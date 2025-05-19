@@ -1,4 +1,5 @@
-pub mod clock;
-pub mod label;
-pub mod root;
+pub mod util;
 pub mod widget;
+
+pub mod root;
+pub use root::Root;

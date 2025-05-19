@@ -1,13 +1,16 @@
-use chrono::Local;
+use std::rc::Rc;
 
-use crate::{label::Label, widget::Widget};
+use chrono::Local;
+use fontdue::Font;
+
+use crate::{widget::Label, widget::Widget};
 
 pub struct Clock {
     label: Label,
 }
 
 impl Clock {
-    pub fn new(font: &fontdue::Font, size: f32) -> Self {
+    pub fn new(font: &Rc<Vec<Font>>, size: f32) -> Self {
         Clock {
             label: Label::new(&Local::now().format("%H:%M:%S").to_string(), font, size),
         }

@@ -2,8 +2,10 @@ use std::{
     cmp::{max, min},
     error::Error,
     num::NonZeroU32,
+    rc::Rc,
 };
 
+use fontdue::Font;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
@@ -53,6 +55,7 @@ pub struct Root {
     pointer: Option<wl_pointer::WlPointer>,
 
     widgets: Vec<Box<dyn Widget>>,
+    fonts: Rc<Vec<Font>>,
 }
 
 impl CompositorHandler for Root {
@@ -353,6 +356,7 @@ impl Root {
             pointer: None,
 
             widgets: Vec::new(),
+            fonts: Rc::new(Vec::new()),
         };
 
         Ok(bar)
@@ -414,6 +418,15 @@ impl Root {
         Ok(self)
     }
 
+    #[inline]
+    pub fn add_font(&mut self, font: Font) {
+        (*Rc::get_mut(&mut self.fonts).unwrap()).push(font);
+    }
+
+    pub fn fonts(&self) -> &Rc<Vec<Font>> {
+        &self.fonts
+    }
+
     fn draw(&mut self, qh: &QueueHandle<Self>) {
         let width = self.width as usize;
         let height = self.height as usize;
@@ -434,7 +447,7 @@ impl Root {
                 .chunks_exact_mut(4)
                 .enumerate()
                 .for_each(|(_, chunk)| {
-                    let a: u32 = 0xFF;
+                    let a: u32 = 0xff;
                     let r: u32 = 4;
                     let g: u32 = 165;
                     let b: u32 = 229;
