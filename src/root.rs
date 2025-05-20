@@ -29,11 +29,11 @@ use smithay_client_toolkit::{
 };
 use wayland_client::{
     globals::GlobalList,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_shm, wl_surface},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
     Connection, EventQueue, QueueHandle,
 };
 
-use crate::widget::Widget;
+use crate::{util::Drawer, widgets::Widget};
 
 pub struct Root {
     flag: bool,
@@ -45,7 +45,6 @@ pub struct Root {
 
     exit: bool,
     first_configure: bool,
-    pool: SlotPool,
     width: u32,
     height: u32,
     shift: Option<u32>,
@@ -54,6 +53,7 @@ pub struct Root {
     keyboard_focus: bool,
     pointer: Option<wl_pointer::WlPointer>,
 
+    drawer: Option<Drawer>,
     widgets: Vec<Box<dyn Widget>>,
     fonts: Rc<Vec<Font>>,
 }
@@ -334,8 +334,6 @@ impl Root {
 
         let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Top, Some("Bar"), None);
 
-        let pool = SlotPool::new(16 * 16 * 4, &shm).expect("Failed to create pool");
-
         let bar = Root {
             flag: true,
 
@@ -346,7 +344,6 @@ impl Root {
 
             exit: false,
             first_configure: true,
-            pool,
             width: 16,
             height: 16,
             shift: None,
@@ -357,6 +354,7 @@ impl Root {
 
             widgets: Vec::new(),
             fonts: Rc::new(Vec::new()),
+            drawer: None,
         };
 
         Ok(bar)
@@ -374,7 +372,7 @@ impl Root {
         self.layer
             .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
         self.width = 32;
-        self.height = 60;
+        self.height = 100;
 
         event_queue.blocking_dispatch(self)?;
 
@@ -394,11 +392,9 @@ impl Root {
         self.layer.set_exclusive_zone(self.height as i32);
         self.layer.commit();
 
-        let _ = self.pool.resize(
-            ((self.width * self.height * 4) as usize)
-                .try_into()
-                .unwrap(),
-        );
+        let pool = SlotPool::new((self.width * self.height * 4) as usize, &self.shm).unwrap();
+
+        self.drawer = Some(Drawer::new(pool, self.width as i32, self.height as i32));
 
         Ok(self)
     }
@@ -423,63 +419,30 @@ impl Root {
         (*Rc::get_mut(&mut self.fonts).unwrap()).push(font);
     }
 
-    pub fn fonts(&self) -> &Rc<Vec<Font>> {
-        &self.fonts
+    #[inline]
+    pub fn fonts(&self) -> Rc<Vec<Font>> {
+        Rc::clone(&self.fonts)
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>) {
-        let width = self.width as usize;
-        let height = self.height as usize;
-        let stride = self.width as i32 * 4;
-
-        let (buffer, canvas) = self
-            .pool
-            .create_buffer(
-                width as i32,
-                height as i32,
-                stride,
-                wl_shm::Format::Argb8888,
-            )
-            .expect("create buffer");
-        {
-            let _ = self.shift.unwrap_or(0);
-            canvas
-                .chunks_exact_mut(4)
-                .enumerate()
-                .for_each(|(_, chunk)| {
-                    let a: u32 = 0xff;
-                    let r: u32 = 4;
-                    let g: u32 = 165;
-                    let b: u32 = 229;
-                    let color = (a << 24) + (r << 16) + (g << 8) + b;
-
-                    let array: &mut [u8; 4] = chunk.try_into().unwrap();
-                    *array = color.to_le_bytes();
-                });
-
-            for (i, widget) in self.widgets.iter_mut().enumerate() {
-                widget.draw(canvas, i * 300 + 33, 0, width);
-            }
-        }
-
-        if let Some(shift) = &mut self.shift {
-            *shift = (*shift + 1) % width as u32;
-        }
-
         self.layer
             .wl_surface()
-            .damage_buffer(0, 0, width as i32, height as i32);
+            .damage_buffer(0, 0, self.width as i32, self.height as i32);
+
+        if let Some(drawer) = &mut self.drawer {
+            for widget in self.widgets.iter_mut() {
+                widget.draw(drawer);
+            }
+        }
 
         // Request our next frame
         self.layer
             .wl_surface()
             .frame(qh, self.layer.wl_surface().clone());
 
-        // Attach and commit to present.
-        buffer
-            .attach_to(self.layer.wl_surface())
-            .expect("buffer attach");
-        self.layer.commit();
+        if let Some(drawer) = &self.drawer {
+            drawer.commit(&self.layer.wl_surface());
+        }
 
         self.flag = false;
     }
