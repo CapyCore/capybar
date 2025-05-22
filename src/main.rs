@@ -2,7 +2,7 @@ use capybar::{
     util::Color,
     widgets::{
         containers::row::{Row, RowSettings},
-        Text, WidgetData,
+        Clock, Text, WidgetData,
     },
     Root,
 };
@@ -36,12 +36,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         WidgetData {
             height: 30,
             margin: (10, 0, 10, 0), //does not do anything because not inside of container
-                                    //idk if that should stay that way
+            //idk if that should stay that way
             position: (10, 10),
             ..WidgetData::new()
         },
         Some(RowSettings {
-            background: Some(Color::GREEN),
+            background: Some(Color::CYAN),
             ..RowSettings::default()
         }),
     ));
@@ -66,6 +66,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..WidgetData::new()
         },
     )));
+
+    row.add_child(Box::new(Clock::new(&mut bar.fonts(), 25.0)));
 
     bar.add_widget(row);
 

@@ -21,7 +21,10 @@ impl Clock {
                 Local::now().format("%H:%M:%S").to_string(),
                 &mut Rc::clone(fonts),
                 size,
-                WidgetData::new(),
+                WidgetData {
+                    width: (size * 5.0) as usize,
+                    ..WidgetData::new()
+                },
             ),
         }
     }

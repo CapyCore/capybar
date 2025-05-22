@@ -5,10 +5,7 @@ use fontdue::{
     Font,
 };
 
-use crate::{
-    util::{Color, Drawer},
-    widgets::Widget,
-};
+use crate::{util::Drawer, widgets::Widget};
 
 use super::WidgetData;
 
@@ -25,7 +22,10 @@ impl Text {
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
 
         layout.reset(&LayoutSettings {
-            max_width: Some(data.width as f32),
+            max_width: match data.width {
+                0 => None,
+                width => Some(width as f32),
+            },
             ..LayoutSettings::default()
         });
 
@@ -66,27 +66,7 @@ impl Widget for Text {
         let font = &Rc::make_mut(&mut self.fonts)[0];
 
         for glyph in self.layout.glyphs() {
-            let (_, bitmap) = font.rasterize_indexed_subpixel(glyph.key.glyph_index, glyph.key.px);
-            if glyph.char_data.is_whitespace() {
-                continue;
-            }
-
-            for x in 0..glyph.width {
-                for y in 0..glyph.height {
-                    let color = Color::from_rgba(
-                        bitmap[x * 3 + y * glyph.width * 3],
-                        bitmap[x * 3 + y * glyph.width * 3 + 1],
-                        bitmap[x * 3 + y * glyph.width * 3 + 2],
-                        0xFF,
-                    );
-
-                    drawer.draw_pixel(
-                        &self.data,
-                        (x + glyph.x as usize, y + glyph.y as usize),
-                        color,
-                    );
-                }
-            }
+            drawer.draw_glyph(&self.data, glyph, font);
         }
     }
 
