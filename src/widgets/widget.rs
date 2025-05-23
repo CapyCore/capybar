@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use crate::util::Drawer;
+use crate::util::{Color, Drawer};
 
 pub trait Widget {
     fn draw(&mut self, drawer: &mut Drawer);
@@ -28,6 +28,7 @@ pub struct WidgetData {
     pub width: usize,
     pub height: usize,
     pub margin: (usize, usize, usize, usize),
+    pub background: Option<Color>,
 }
 
 impl WidgetData {
@@ -37,6 +38,7 @@ impl WidgetData {
             width: 0,
             height: 0,
             margin: (0, 0, 0, 0),
+            background: None,
         }
     }
 }
