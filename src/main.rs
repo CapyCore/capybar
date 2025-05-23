@@ -34,40 +34,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut row = Box::new(Row::new(
         WidgetData {
-            height: 30,
             margin: (10, 0, 10, 0), //does not do anything because not inside of container
             //idk if that should stay that way
+            width: 1000,
             position: (10, 10),
             ..WidgetData::new()
         },
         Some(RowSettings {
             background: Some(Color::CYAN),
+            border: Some((10, Color::PINK)),
+            alignment: capybar::widgets::containers::row::Alignment::CenteringHorizontal,
             ..RowSettings::default()
         }),
     ));
     row.add_child(Box::new(Text::new(
         "test1".to_string(),
         &mut bar.fonts(),
-        25.0,
+        20.0,
         WidgetData {
-            width: 40,
-            margin: (50, 10, 0, 0),
+            width: 50,
+            margin: (10, 0, 0, 0),
             ..WidgetData::new()
         },
-    )));
+    )))?;
 
-    row.add_child(Box::new(Text::new(
+        row.add_child(Box::new(Text::new(
         "test2".to_string(),
         &mut bar.fonts(),
         20.0,
         WidgetData {
-            width: 100,
-            margin: (10, 30, 50, 0),
+            width: 50,
             ..WidgetData::new()
         },
-    )));
+    )))?;
 
-    row.add_child(Box::new(Clock::new(&mut bar.fonts(), 25.0)));
+    row.add_child(Box::new(Clock::new(&mut bar.fonts(), 25.0)))?;
 
     bar.add_widget(row);
 

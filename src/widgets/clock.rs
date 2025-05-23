@@ -22,7 +22,7 @@ impl Clock {
                 &mut Rc::clone(fonts),
                 size,
                 WidgetData {
-                    width: (size * 5.0) as usize,
+                    width: (size * 6.0) as usize,
                     ..WidgetData::new()
                 },
             ),
