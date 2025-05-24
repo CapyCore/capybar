@@ -5,10 +5,10 @@ use fontdue::Font;
 
 use crate::{
     util::Drawer,
-    widgets::{Text, Widget},
+    widgets::{text::Text, Widget},
 };
 
-use super::WidgetData;
+use super::{text::TextSettings, WidgetData};
 
 pub struct Clock {
     label: Text,
@@ -20,10 +20,13 @@ impl Clock {
             label: Text::new(
                 Local::now().format("%H:%M:%S").to_string(),
                 &mut Rc::clone(fonts),
-                size,
                 WidgetData {
                     width: (size * 6.0) as usize,
                     ..WidgetData::new()
+                },
+                TextSettings {
+                    size,
+                    ..TextSettings::default()
                 },
             ),
         }

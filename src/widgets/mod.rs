@@ -1,10 +1,8 @@
 pub mod widget;
 pub use widget::*;
 
-mod label;
-pub use label::Text;
+pub mod text;
 
-mod clock;
-pub use clock::Clock;
+pub mod clock;
 
 pub mod containers;

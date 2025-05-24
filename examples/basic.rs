@@ -1,36 +1,22 @@
 use capybar::{
     util::Color,
     widgets::{
+        clock::Clock,
         containers::row::{Row, RowSettings},
-        Clock, Text, WidgetData,
+        text::{Text, TextSettings},
+        WidgetData,
     },
     Root,
 };
-use fontconfig::Fontconfig;
-use fontdue::{Font, FontSettings};
 use wayland_client::{globals::registry_queue_init, Connection};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let fc = Fontconfig::new().unwrap();
-
-    let font = fc.find("Mono", None).unwrap();
-    let size: f32 = 200.0;
-
-    let settings = FontSettings {
-        scale: size,
-        ..fontdue::FontSettings::default()
-    };
-
-    let bytes = std::fs::read(&font.path.as_path())?;
-
-    let font = Font::from_bytes(bytes, settings).unwrap();
-
     let conn = Connection::connect_to_env()?;
     let (globals, mut event_queue) = registry_queue_init(&conn)?;
 
     let mut bar = Root::new(&globals, &mut event_queue)?;
 
-    bar.add_font(font);
+    bar.add_font_by_name("Mono".to_string())?;
 
     let mut row = Box::new(Row::new(
         WidgetData {
@@ -50,21 +36,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     row.add_child(Box::new(Text::new(
         "test1".to_string(),
         &mut bar.fonts(),
-        20.0,
         WidgetData {
-            width: 50,
+            width: 60,
             margin: (10, 0, 0, 0),
             ..WidgetData::new()
         },
+        TextSettings {
+            size: 25.0,
+            background: Some(Color::WHITE),
+            color: Color::PURPLE,
+            ..TextSettings::default()
+        },
     )))?;
 
-        row.add_child(Box::new(Text::new(
+    row.add_child(Box::new(Text::new(
         "test2".to_string(),
         &mut bar.fonts(),
-        20.0,
         WidgetData {
-            width: 50,
+            width: 65,
             ..WidgetData::new()
+        },
+        TextSettings {
+            size: 25.0,
+            background: Some(Color::BLACK),
+            color: Color::YELLOW,
+            ..TextSettings::default()
         },
     )))?;
 

@@ -33,7 +33,13 @@ use wayland_client::{
     Connection, EventQueue, QueueHandle,
 };
 
-use crate::{util::Drawer, widgets::Widget};
+use crate::{
+    util::{
+        font::{Fonts, FontsError},
+        Drawer,
+    },
+    widgets::Widget,
+};
 
 pub struct Root {
     flag: bool,
@@ -55,7 +61,7 @@ pub struct Root {
 
     drawer: Option<Drawer>,
     widgets: Vec<Box<dyn Widget>>,
-    fonts: Rc<Vec<Font>>,
+    fonts: Fonts,
 }
 
 impl CompositorHandler for Root {
@@ -353,7 +359,7 @@ impl Root {
             pointer: None,
 
             widgets: Vec::new(),
-            fonts: Rc::new(Vec::new()),
+            fonts: Fonts::new().unwrap(),
             drawer: None,
         };
 
@@ -414,14 +420,12 @@ impl Root {
         Ok(self)
     }
 
-    #[inline]
-    pub fn add_font(&mut self, font: Font) {
-        (*Rc::get_mut(&mut self.fonts).unwrap()).push(font);
+    pub fn add_font_by_name(&mut self, name: String) -> Result<(), FontsError> {
+        self.fonts.add_font_by_name(name)
     }
 
-    #[inline]
     pub fn fonts(&self) -> Rc<Vec<Font>> {
-        Rc::clone(&self.fonts)
+        self.fonts.fonts()
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>) {
