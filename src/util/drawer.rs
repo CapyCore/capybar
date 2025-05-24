@@ -98,7 +98,13 @@ impl Drawer {
         }
     }
 
-    pub fn draw_glyph(&mut self, data: &WidgetData, glyph: &GlyphPosition, font: &Font) {
+    pub fn draw_glyph(
+        &mut self,
+        data: &WidgetData,
+        glyph: &GlyphPosition,
+        font: &Font,
+        mut color: Color,
+    ) {
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
                 .create_buffer(
@@ -137,7 +143,7 @@ impl Drawer {
 
         for x in 0..glyph.width {
             for y in 0..glyph.height {
-                let color = Color::from_rgba(0, 0, 0, bitmap[x + y * glyph.width]);
+                color.set_a(bitmap[x + y * glyph.width]);
 
                 let chunk_id = data.position.0
                     + x

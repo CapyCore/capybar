@@ -150,11 +150,12 @@ impl Row {
 
         if self.children.len() == 1 {
             let data = self.children[0].data();
-            data.position.0 = self.data.position.0 + (self.data.width - border * 2 - total_width) / 2;
-            return Ok(())
+            data.position.0 =
+                self.data.position.0 + (self.data.width - border * 2 - total_width) / 2;
+            return Ok(());
         }
 
-        let dist = (self.data.width - 2*border - total_width) / (self.children.len()-1);
+        let dist = (self.data.width - 2 * border - total_width) / (self.children.len() - 1);
         let mut x = self.data.position.0 + border;
         for child in self.children.iter_mut() {
             let data = child.data();
