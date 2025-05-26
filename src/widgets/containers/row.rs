@@ -1,20 +1,30 @@
-use std::{error::Error, fmt::Display};
+use std::rc::Rc;
+
+use anyhow::Result;
+use thiserror::Error;
 
 use crate::{
+    root::Environment,
     util::{Color, Drawer},
-    widgets::{Widget, WidgetData},
+    widgets::{Widget, WidgetData, WidgetNew},
 };
 
+#[derive(Debug)]
 pub enum Alignment {
     CenteringHorizontal,
-    GrowthHorizontal(usize),
-    GrowthVertical(usize),
+    CenteringVertical,
+    GrowthHorizontalRight(usize),
+    GrowthHorizontalLeft(usize),
+    GrowthVerticalUp(usize),
+    GrowthVerticalDown(usize),
 }
 
 pub struct RowSettings {
     pub background: Option<Color>,
     pub border: Option<(usize, Color)>,
     pub alignment: Alignment,
+
+    pub data: WidgetData,
 }
 
 impl RowSettings {
@@ -22,189 +32,202 @@ impl RowSettings {
         RowSettings {
             background: None,
             border: None,
-            alignment: Alignment::GrowthHorizontal(10),
+            alignment: Alignment::GrowthHorizontalRight(10),
+
+            data: WidgetData::default(),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum RowError {
+    #[error("Row is not wide enough to display all of it's child")]
     WidthOverflow,
-}
 
-impl Error for RowError {}
-
-impl Display for RowError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::WidthOverflow => write!(f, "Row is not wide enough to display all of it's child"),
-        }
-    }
+    #[error("anyhow error: {0}")]
+    Other(#[from] anyhow::Error),
 }
 
 pub struct Row {
-    data: WidgetData,
     settings: RowSettings,
 
     children: Vec<Box<dyn Widget>>,
+    env: Option<Rc<Environment>>,
 }
 
 impl Widget for Row {
-    fn draw(&mut self, drawer: &mut Drawer) {
+    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+        self.env = Some(Rc::clone(&env));
+        let data = &mut self.settings.data;
+
+        for child in &mut self.children {
+            child.bind(Rc::clone(&env))?;
+            let child_data = child.data()?;
+
+            data.height = usize::max(
+                data.height,
+                child_data.height + child_data.position.1 + child_data.margin.3,
+            );
+        }
+
+        self.align_children()?;
+
+        Ok(())
+    }
+
+    fn draw(&mut self, drawer: &mut Drawer) -> Result<()> {
+        if self.children.len() == 0 {
+            self.settings.data.height =
+                self.settings.border.unwrap_or_else(|| (5, Color::NONE)).0 * 3;
+        }
+
         let border = match self.settings.border {
             Some(a) => (a.0, Some(a.1)),
             None => (0, None),
         };
 
+        let data = &self.settings.data;
+
         if let Some(color) = self.settings.background {
-            for x in border.0..self.data.width - border.0 {
-                for y in border.0..self.data.height - border.0 {
-                    drawer.draw_pixel(&self.data, (x, y), color);
+            for x in border.0..data.width - border.0 {
+                for y in border.0..data.height - border.0 {
+                    drawer.draw_pixel(&data, (x, y), color);
                 }
             }
         }
 
         if let Some(color) = border.1 {
             for x in 0..border.0 {
-                for y in 0..self.data.height {
-                    drawer.draw_pixel(&self.data, (x, y), color);
-                    drawer.draw_pixel(&self.data, (self.data.width - 1 - x, y), color);
+                for y in 0..data.height {
+                    drawer.draw_pixel(&data, (x, y), color);
+                    drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
                 }
             }
 
-            for x in 0..self.data.width {
+            for x in 0..data.width {
                 for y in 0..border.0 {
-                    drawer.draw_pixel(&self.data, (x, y), color);
-                    drawer.draw_pixel(&self.data, (x, self.data.height - 1 - y), color);
+                    drawer.draw_pixel(&data, (x, y), color);
+                    drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
                 }
             }
         }
 
         for widget in self.children.iter_mut() {
-            widget.draw(drawer);
+            widget.draw(drawer)?;
         }
+
+        Ok(())
     }
 
-    fn data(&mut self) -> &mut WidgetData {
-        &mut self.data
+    fn data(&mut self) -> Result<&mut WidgetData> {
+        Ok(&mut self.settings.data)
     }
 }
 
 impl Row {
-    pub fn new(mut data: WidgetData, settings: Option<RowSettings>) -> Self {
-        Row {
-            settings: match settings {
-                Some(a) => {
-                    if let Some((i, _)) = a.border {
-                        data.width += i * 2;
-                        data.height += i * 2;
-                    }
-                    a
-                }
-                None => RowSettings::default(),
-            },
-            data,
+    pub fn add_child(&mut self, child: Box<dyn Widget>) -> Result<(), RowError> {
+        self.children.push(child);
 
-            children: Vec::new(),
+        match self.settings.alignment {
+            Alignment::CenteringHorizontal => self.align_children_centered_horizontal()?,
+            Alignment::CenteringVertical => todo!(),
+            Alignment::GrowthHorizontalRight(_) => todo!(),
+            Alignment::GrowthHorizontalLeft(_) => todo!(),
+            Alignment::GrowthVerticalUp(_) => todo!(),
+            Alignment::GrowthVerticalDown(_) => todo!(),
         }
+
+        Ok(())
     }
 
-    pub fn add_child(&mut self, child: Box<dyn Widget>) -> Result<(), RowError> {
+    pub fn create_child<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    where
+        W: WidgetNew + Widget + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+    {
+        self.add_child(Box::new(f(self.env.clone(), settings)?))?;
+        Ok(())
+    }
+
+    fn align_children(&mut self) -> Result<(), RowError> {
+        if self.children.len() == 0 {
+            return Ok(());
+        }
+
         match self.settings.alignment {
-            Alignment::CenteringHorizontal => self.grow_child_centered_horizontal(child)?,
-            Alignment::GrowthHorizontal(padding) => self.grow_child_horizontal(child, padding),
-            Alignment::GrowthVertical(padding) => self.grow_child_vertical(child, padding),
+            Alignment::CenteringHorizontal => self.align_children_centered_horizontal()?,
+            Alignment::CenteringVertical => todo!(),
+            Alignment::GrowthHorizontalRight(_) => todo!(),
+            Alignment::GrowthHorizontalLeft(_) => todo!(),
+            Alignment::GrowthVerticalUp(_) => todo!(),
+            Alignment::GrowthVerticalDown(_) => todo!(),
         };
 
         Ok(())
     }
 
-    fn grow_child_centered_horizontal(
-        &mut self,
-        mut child: Box<dyn Widget>,
-    ) -> Result<(), RowError> {
-        let data = &mut child.data();
+    fn align_children_centered_horizontal(&mut self) -> Result<(), RowError> {
+        let data = &mut self.settings.data;
         let border = match self.settings.border {
             Some((i, _)) => i,
             None => 0,
         };
 
-        data.position.1 = self.data.position.1 + border + data.margin.2;
-        self.data.height = usize::max(
-            self.data.height,
-            data.height + data.position.1 + data.margin.3,
-        );
-
-        self.children.push(child);
-
-        let total_width = self.children.iter_mut().fold(0, |acc, e| {
-            acc + {
-                let data = e.data();
+        let mut total_width = 0;
+        for child in &mut self.children {
+            total_width += {
+                let data = child.data()?;
                 data.width + data.margin.0 + data.margin.1
             }
-        });
+        }
 
-        if total_width > self.data.width - 2 * border {
+        if total_width > data.width - 2 * border {
             return Err(RowError::WidthOverflow);
         }
 
         if self.children.len() == 1 {
-            let data = self.children[0].data();
-            data.position.0 =
-                self.data.position.0 + (self.data.width - border * 2 - total_width) / 2;
+            let child = self.children[0].data()?;
+            child.position.0 = child.position.0 + (data.width - border * 2 - total_width) / 2;
+            child.position.1 = data.position.1 + border + child.margin.2;
+            data.height = usize::max(
+                data.height,
+                child.height + child.position.1 + child.margin.3,
+            );
             return Ok(());
         }
 
-        let dist = (self.data.width - 2 * border - total_width) / (self.children.len() - 1);
-        let mut x = self.data.position.0 + border;
+        let dist = (data.width - 2 * border - total_width) / (self.children.len() - 1);
+        let mut x = data.position.0 + border;
         for child in self.children.iter_mut() {
-            let data = child.data();
+            let child = child.data()?;
+            child.position.0 = x + child.margin.0;
 
-            data.position.0 = x + data.margin.0;
+            child.position.1 = data.position.1 + border + child.margin.2;
 
-            x += data.margin.0 + data.width + data.margin.1 + dist;
+            data.height = usize::max(
+                data.height,
+                child.height + child.position.1 + child.margin.3,
+            );
+
+            x += child.margin.0 + child.width + child.margin.1 + dist;
         }
 
         Ok(())
     }
+}
 
-    fn grow_child_horizontal(&mut self, mut child: Box<dyn Widget>, padding: usize) {
-        let data = &mut child.data();
-        let border = match self.settings.border {
-            Some((i, _)) => i,
-            None => 0,
-        };
+impl WidgetNew for Row {
+    type Settings = RowSettings;
 
-        data.position.0 = self.data.position.0 + self.data.width + data.margin.0;
-        if self.children.len() != 0 {
-            data.position.0 += padding;
-        }
-        data.position.1 = self.data.position.1 + data.margin.2 + border;
-        self.data.width = data.position.0 + data.width + data.margin.1 + border;
-        self.data.height = usize::max(
-            self.data.height,
-            data.height + data.position.1 + data.margin.3,
-        );
-        self.children.push(child);
-    }
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Row {
+            settings,
+            env,
 
-    fn grow_child_vertical(&mut self, mut child: Box<dyn Widget>, padding: usize) {
-        let data = &mut child.data();
-        let border = match self.settings.border {
-            Some((i, _)) => i,
-            None => 0,
-        };
-
-        data.position.1 = self.data.position.1 + self.data.height + data.margin.2;
-        if self.children.len() != 0 {
-            data.position.1 += padding;
-        }
-        data.position.0 = self.data.position.0 + data.margin.0 + border;
-        self.data.height = data.position.1 + data.height + data.margin.3 + border;
-        self.data.width = usize::max(
-            self.data.height,
-            data.width + data.position.0 + data.margin.1,
-        );
-        self.children.push(child);
+            children: Vec::new(),
+        })
     }
 }

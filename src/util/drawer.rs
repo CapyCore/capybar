@@ -28,6 +28,7 @@ impl fmt::Display for DrawerError {
     }
 }
 
+#[derive(Debug)]
 pub struct Drawer {
     pool: SlotPool,
     buffer: Option<Buffer>,
