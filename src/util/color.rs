@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Color(u32);
 
 impl Display for Color {

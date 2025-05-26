@@ -14,3 +14,4 @@ fontdue = "0.9.3"
 
 chrono = "0.4.41"
 thiserror = "2.0.12"
+anyhow = "1.0.98"

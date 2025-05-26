@@ -5,6 +5,7 @@ use std::{
     rc::Rc,
 };
 
+use anyhow::Result;
 use fontdue::Font;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
@@ -38,8 +39,12 @@ use crate::{
         font::{Fonts, FontsError},
         Drawer,
     },
-    widgets::Widget,
+    widgets::{Widget, WidgetNew},
 };
+
+pub struct Environment {
+    pub fonts: Fonts,
+}
 
 pub struct Root {
     flag: bool,
@@ -62,6 +67,8 @@ pub struct Root {
     drawer: Option<Drawer>,
     widgets: Vec<Box<dyn Widget>>,
     fonts: Fonts,
+
+    env: Rc<Environment>,
 }
 
 impl CompositorHandler for Root {
@@ -92,7 +99,9 @@ impl CompositorHandler for Root {
         _surface: &wl_surface::WlSurface,
         _time: u32,
     ) {
-        self.draw(qh);
+        if let Err(a) = self.draw(qh) {
+            println!("{}", a);
+        }
     }
 
     fn surface_enter(
@@ -165,7 +174,9 @@ impl LayerShellHandler for Root {
         // Initiate the first draw.
         if self.first_configure {
             self.first_configure = false;
-            self.draw(qh);
+            if let Err(a) = self.draw(qh) {
+                println!("{}", a);
+            }
         }
     }
 }
@@ -361,13 +372,13 @@ impl Root {
             widgets: Vec::new(),
             fonts: Fonts::new().unwrap(),
             drawer: None,
+
+            env: Rc::new(Environment {
+                fonts: Fonts::new().unwrap(),
+            }),
         };
 
         Ok(bar)
-    }
-
-    pub fn add_widget(&mut self, widget: Box<dyn Widget>) {
-        self.widgets.push(widget);
     }
 
     pub fn init(
@@ -412,7 +423,6 @@ impl Root {
             event_queue.blocking_dispatch(self)?;
 
             if self.exit {
-                println!("exiting bar");
                 break;
             }
         }
@@ -421,21 +431,44 @@ impl Root {
     }
 
     pub fn add_font_by_name(&mut self, name: String) -> Result<(), FontsError> {
-        self.fonts.add_font_by_name(name)
+        self.fonts.add_font_by_name(name.clone())?;
+        Rc::get_mut(&mut self.env)
+            .unwrap()
+            .fonts
+            .add_font_by_name(name)
     }
 
     pub fn fonts(&self) -> Rc<Vec<Font>> {
         self.fonts.fonts()
     }
 
-    fn draw(&mut self, qh: &QueueHandle<Self>) {
+    pub fn add_widget<W>(&mut self, mut widget: W) -> Result<()>
+    where
+        W: Widget + 'static,
+    {
+        widget.bind(Rc::clone(&self.env))?;
+        self.widgets.push(Box::new(widget));
+        Ok(())
+    }
+
+    pub fn create_widget<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    where
+        W: WidgetNew + Widget + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+    {
+        self.widgets
+            .push(Box::new(f(Some(Rc::clone(&self.env)), settings)?));
+        Ok(())
+    }
+
+    fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<()> {
         self.layer
             .wl_surface()
             .damage_buffer(0, 0, self.width as i32, self.height as i32);
 
         if let Some(drawer) = &mut self.drawer {
             for widget in self.widgets.iter_mut() {
-                widget.draw(drawer);
+                widget.draw(drawer)?;
             }
         }
 
@@ -449,6 +482,7 @@ impl Root {
         }
 
         self.flag = false;
+        Ok(())
     }
 }
 

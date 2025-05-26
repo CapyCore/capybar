@@ -1,52 +1,81 @@
 use std::rc::Rc;
 
+use anyhow::Result;
 use chrono::Local;
-use fontdue::Font;
 
 use crate::{
+    root::Environment,
     util::Drawer,
     widgets::{text::Text, Widget},
 };
 
-use super::{text::TextSettings, WidgetData};
+use super::{text::TextSettings, WidgetData, WidgetNew};
+
+pub struct ClockSettings {
+    size: f32,
+    format: String,
+}
+
+impl Default for ClockSettings {
+    fn default() -> Self {
+        Self {
+            size: 25.0,
+            format: "%H:%M:%S".to_string(),
+        }
+    }
+}
 
 pub struct Clock {
     label: Text,
+    settings: ClockSettings,
 }
 
 impl Clock {
-    pub fn new(fonts: &Rc<Vec<Font>>, size: f32) -> Self {
-        Clock {
-            label: Text::new(
-                Local::now().format("%H:%M:%S").to_string(),
-                &mut Rc::clone(fonts),
-                WidgetData {
-                    width: (size * 6.0) as usize,
-                    ..WidgetData::new()
-                },
-                TextSettings {
-                    size,
-                    ..TextSettings::default()
-                },
-            ),
-        }
-    }
-
     pub fn update(&mut self) -> &Self {
         self.label
-            .change_text(&Local::now().format("%H:%M:%S").to_string());
+            .change_text(&Local::now().format(&self.settings.format).to_string());
 
         self
     }
 }
 
 impl Widget for Clock {
-    fn draw(&mut self, drawer: &mut Drawer) {
-        self.update();
-        self.label.draw(drawer);
+    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+        self.label.bind(env)
     }
 
-    fn data(&mut self) -> &mut super::WidgetData {
+    fn draw(&mut self, drawer: &mut Drawer) -> Result<()> {
+        self.update();
+        self.label.draw(drawer)
+    }
+
+    fn data(&mut self) -> Result<&mut WidgetData> {
         self.label.data()
+    }
+}
+
+impl WidgetNew for Clock {
+    type Settings = ClockSettings;
+
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Clock {
+            label: Text::new(
+                env,
+                TextSettings {
+                    text: Local::now().format(&settings.format).to_string(),
+
+                    data: WidgetData {
+                        width: (settings.size * 6.0) as usize,
+                        ..WidgetData::default()
+                    },
+
+                    ..TextSettings::default()
+                },
+            )?,
+            settings,
+        })
     }
 }
