@@ -5,15 +5,17 @@ use chrono::Local;
 
 use crate::{
     root::Environment,
-    util::Drawer,
+    util::{Color, Drawer},
     widgets::{text::Text, Widget},
 };
 
 use super::{text::TextSettings, WidgetData, WidgetNew};
 
 pub struct ClockSettings {
-    size: f32,
-    format: String,
+    pub size: f32,
+    pub format: String,
+
+    pub font_color: Color,
 }
 
 impl Default for ClockSettings {
@@ -21,6 +23,8 @@ impl Default for ClockSettings {
         Self {
             size: 25.0,
             format: "%H:%M:%S".to_string(),
+
+            font_color: Color::BLACK,
         }
     }
 }
@@ -66,6 +70,7 @@ impl WidgetNew for Clock {
                 env,
                 TextSettings {
                     text: Local::now().format(&settings.format).to_string(),
+                    color: settings.font_color,
 
                     data: WidgetData {
                         width: (settings.size * 6.0) as usize,

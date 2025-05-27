@@ -94,8 +94,8 @@ impl Drawer {
         let chunk = canvas.chunks_exact_mut(4).nth(chunk_id);
         if let Some(chunk) = chunk {
             let array: &mut [u8; 4] = chunk.try_into().unwrap();
-
-            *array = Color::blend_colors(&Color::from_be_bytes(array), &color).to_be_bytes();
+            let c = Color::blend_colors(&Color::from_be_bytes(array), &color).to_be_bytes();
+            *array = [c[2], c[1], c[0], c[3]];
         }
     }
 
