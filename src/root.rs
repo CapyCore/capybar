@@ -389,7 +389,15 @@ impl Root {
         self.layer
             .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
         self.width = 32;
-        self.height = 100;
+        self.height = 0;
+
+        for widget in &mut self.widgets {
+            let data = widget.data()?;
+            self.height = max(
+                self.height,
+                (data.height + data.position.1).try_into().unwrap(),
+            );
+        }
 
         event_queue.blocking_dispatch(self)?;
 

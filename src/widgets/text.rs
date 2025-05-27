@@ -76,6 +76,15 @@ impl Widget for Text {
         );
 
         self.settings.data.height = self.layout.height().clone() as usize;
+        self.settings.data.width = 0;
+        if let Some(lines) = self.layout.lines() {
+            for line in lines {
+                let glyph = self.layout.glyphs()[line.glyph_end];
+                let width = glyph.width + glyph.x.ceil() as usize;
+
+                self.settings.data.width = usize::max(self.settings.data.width, width);
+            }
+        }
 
         Ok(())
     }

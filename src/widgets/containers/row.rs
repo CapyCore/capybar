@@ -59,6 +59,10 @@ impl Widget for Row {
     fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
         self.env = Some(Rc::clone(&env));
         let data = &mut self.settings.data;
+        let border = match self.settings.border {
+            Some(a) => a.0,
+            None => 0,
+        };
 
         for child in &mut self.children {
             child.bind(Rc::clone(&env))?;
@@ -66,7 +70,7 @@ impl Widget for Row {
 
             data.height = usize::max(
                 data.height,
-                child_data.height + child_data.position.1 + child_data.margin.3,
+                child_data.height + child_data.position.1 + child_data.margin.3 + border,
             );
         }
 
@@ -173,6 +177,18 @@ impl Row {
             None => 0,
         };
 
+        if self.children.len() == 1 {
+            let child = &mut self.children[0].data()?;
+
+            child.position.0 = (data.width - border * 2 - child.width) / 2;
+            child.position.1 = data.position.1 + border + child.margin.2;
+            data.height = usize::max(
+                data.height,
+                child.height + child.position.1 + child.margin.3 + border,
+            );
+            return Ok(());
+        }
+
         let mut total_width = 0;
         for child in &mut self.children {
             total_width += {
@@ -185,28 +201,17 @@ impl Row {
             return Err(RowError::WidthOverflow);
         }
 
-        if self.children.len() == 1 {
-            let child = self.children[0].data()?;
-            child.position.0 = child.position.0 + (data.width - border * 2 - total_width) / 2;
-            child.position.1 = data.position.1 + border + child.margin.2;
-            data.height = usize::max(
-                data.height,
-                child.height + child.position.1 + child.margin.3,
-            );
-            return Ok(());
-        }
-
         let dist = (data.width - 2 * border - total_width) / (self.children.len() - 1);
         let mut x = data.position.0 + border;
         for child in self.children.iter_mut() {
             let child = child.data()?;
             child.position.0 = x + child.margin.0;
 
-            child.position.1 = data.position.1 + border + child.margin.2;
+            child.position.1 = data.position.1 + child.margin.2;
 
             data.height = usize::max(
                 data.height,
-                child.height + child.position.1 + child.margin.3,
+                child.height + child.position.1 + child.margin.3 + border,
             );
 
             x += child.margin.0 + child.width + child.margin.1 + dist;

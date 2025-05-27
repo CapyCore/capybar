@@ -22,6 +22,10 @@ impl Color {
 
     pub const PURPLE: Color = Color(0x800080FF);
 
+    pub const fn from_hex(hex: u32) -> Self {
+        Self(hex)
+    }
+
     pub const fn from_rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self(u32::from_be_bytes([r, g, b, a]))
     }
@@ -30,8 +34,16 @@ impl Color {
         Self(u32::from_be_bytes(*bytes))
     }
 
+    pub const fn from_le_bytes(bytes: &[u8; 4]) -> Self {
+        Self(u32::from_le_bytes(*bytes))
+    }
+
     pub const fn to_be_bytes(self) -> [u8; 4] {
         self.0.to_be_bytes()
+    }
+
+    pub const fn to_le_bytes(self) -> [u8; 4] {
+        self.0.to_le_bytes()
     }
 
     pub fn set_a(&mut self, a: u8) {

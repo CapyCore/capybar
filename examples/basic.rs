@@ -1,5 +1,3 @@
-use std::env;
-
 use capybar::{
     util::Color,
     widgets::{
@@ -12,9 +10,20 @@ use capybar::{
 };
 use wayland_client::{globals::registry_queue_init, Connection};
 
+struct Palete {
+    background: Color,
+    border: Color,
+    font: Color,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let catpuccin_mocha = Palete {
+        background: Color::from_hex(0x1e1e2eff),
+        border: Color::from_hex(0x74c7ecff),
+        font: Color::from_hex(0xf5e0dc00),
+    };
+
     // this method needs to be inside main() method
-    env::set_var("RUST_BACKTRACE", "1");
     let conn = Connection::connect_to_env()?;
     let (globals, mut event_queue) = registry_queue_init(&conn)?;
 
@@ -25,14 +34,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut row = Row::new(
         None,
         RowSettings {
-            background: Some(Color::CYAN),
-            border: Some((10, Color::PINK)),
+            background: Some(catpuccin_mocha.background),
+            border: Some((2, catpuccin_mocha.border)),
             alignment: capybar::widgets::containers::row::Alignment::CenteringHorizontal,
             data: WidgetData {
-                margin: (10, 0, 10, 0), //does not do anything because not inside of container
-                //idk if that should stay that way
-                width: 1000,
-                position: (10, 10),
+                width: 1920,
                 ..WidgetData::default()
             },
             ..RowSettings::default()
@@ -42,12 +48,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     row.create_child(
         Text::new,
         TextSettings {
-            text: "Test1".to_string(),
+            text: "Workspaces placeholder".to_string(),
+            color: catpuccin_mocha.font,
+
+            data: WidgetData {
+                margin: (10, 0, 0, 0),
+                ..WidgetData::default()
+            },
+
             ..TextSettings::default()
         },
     )?;
 
-    row.create_child(Clock::new, ClockSettings::default())?;
+    row.create_child(
+        Clock::new,
+        ClockSettings {
+            font_color: catpuccin_mocha.font,
+            ..ClockSettings::default()
+        },
+    )?;
+
+    row.create_child(
+        Text::new,
+        TextSettings {
+            text: "Battery placeholder".to_string(),
+            color: catpuccin_mocha.font,
+
+            data: WidgetData {
+                margin: (0, 10, 0, 0),
+                ..WidgetData::default()
+            },
+
+            ..TextSettings::default()
+        },
+    )?;
 
     bar.add_widget(row)?;
 
