@@ -4,6 +4,7 @@ use capybar::{
         clock::{Clock, ClockSettings},
         containers::row::{Row, RowSettings},
         text::{Text, TextSettings},
+        workspaces::{Workspaces, WorkspacesSettings},
         WidgetData, WidgetNew,
     },
     Root,
@@ -46,17 +47,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     row.create_child(
-        Text::new,
-        TextSettings {
-            text: "Workspaces placeholder".to_string(),
-            color: catpuccin_mocha.font,
+        Workspaces::new,
+        WorkspacesSettings {
+            text: TextSettings {
+                color: catpuccin_mocha.font,
+                size: 25.0,
 
-            data: WidgetData {
-                margin: (10, 0, 0, 0),
-                ..WidgetData::default()
+                ..TextSettings::default()
             },
-
-            ..TextSettings::default()
+            row: RowSettings {
+                data: WidgetData {
+                    margin: (10, 10, 0, 0),
+                    ..WidgetData::default()
+                },
+                ..RowSettings::default()
+            },
+            ..WorkspacesSettings::default()
         },
     )?;
 
@@ -64,6 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Clock::new,
         ClockSettings {
             font_color: catpuccin_mocha.font,
+            size: 25.0,
             ..ClockSettings::default()
         },
     )?;
@@ -73,6 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         TextSettings {
             text: "Battery placeholder".to_string(),
             color: catpuccin_mocha.font,
+            size: 25.0,
 
             data: WidgetData {
                 margin: (0, 10, 0, 0),

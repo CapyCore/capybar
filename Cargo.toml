@@ -5,13 +5,20 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+#Wayland handling
 smithay-client-toolkit = "0.19.2"
 wayland-client = "0.31.10"
 wayland-protocols = "0.32.8"
 
-fontconfig = "0.9.0"
-fontdue = "0.9.3"
-
-chrono = "0.4.41"
+#Error Handling
 thiserror = "2.0.12"
 anyhow = "1.0.98"
+
+### Widget dependencies
+#Fonts
+fontconfig = "0.9.0"
+fontdue = "0.9.3"
+#Clock
+chrono = "0.4.41"
+#Workspaces
+hyprland = "0.4.0-beta.2"

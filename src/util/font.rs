@@ -18,15 +18,12 @@ pub enum FontsError {
 
 impl Fonts {
     pub fn new() -> Option<Self> {
-        let fc = match Fontconfig::new() {
-            Some(f) => f,
-            None => return None,
-        };
+        let fc = Fontconfig::new()?;
 
-        return Some(Fonts {
+        Some(Fonts {
             fontconfig: fc,
             fonts: Rc::new(Vec::new()),
-        });
+        })
     }
 
     pub fn add_font_by_name(&mut self, name: String) -> Result<(), FontsError> {
@@ -35,7 +32,7 @@ impl Fonts {
             None => return Err(FontsError::FontNotFound(name)),
         };
 
-        let bytes = match std::fs::read(&font.path.as_path()) {
+        let bytes = match std::fs::read(font.path.as_path()) {
             Ok(b) => b,
             Err(e) => return Err(FontsError::IO(e)),
         };
