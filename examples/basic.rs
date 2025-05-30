@@ -50,6 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         TextSettings {
             text: "Workspaces placeholder".to_string(),
             color: catpuccin_mocha.font,
+            size: 25.0,
 
             data: WidgetData {
                 margin: (10, 0, 0, 0),
@@ -64,6 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Clock::new,
         ClockSettings {
             font_color: catpuccin_mocha.font,
+            size: 25.0,
+
             ..ClockSettings::default()
         },
     )?;
@@ -73,6 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         TextSettings {
             text: "Battery placeholder".to_string(),
             color: catpuccin_mocha.font,
+            size: 25.0,
 
             data: WidgetData {
                 margin: (0, 10, 0, 0),

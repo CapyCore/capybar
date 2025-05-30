@@ -100,7 +100,7 @@ impl CompositorHandler for Root {
         _time: u32,
     ) {
         if let Err(a) = self.draw(qh) {
-            println!("{}", a);
+            println!("{a}");
         }
     }
 
@@ -175,7 +175,7 @@ impl LayerShellHandler for Root {
         if self.first_configure {
             self.first_configure = false;
             if let Err(a) = self.draw(qh) {
-                println!("{}", a);
+                println!("{a}");
             }
         }
     }
@@ -343,9 +343,9 @@ impl Root {
         let qh = event_queue.handle();
 
         let compositor =
-            CompositorState::bind(&globals, &qh).expect("wl_compositor is not available");
-        let layer_shell = LayerShell::bind(&globals, &qh).expect("layer shell is not available");
-        let shm = Shm::bind(&globals, &qh).expect("wl_shm is not available");
+            CompositorState::bind(globals, &qh).expect("wl_compositor is not available");
+        let layer_shell = LayerShell::bind(globals, &qh).expect("layer shell is not available");
+        let shm = Shm::bind(globals, &qh).expect("wl_shm is not available");
 
         let surface = compositor.create_surface(&qh);
 
@@ -354,9 +354,9 @@ impl Root {
         let bar = Root {
             flag: true,
 
-            registry_state: RegistryState::new(&globals),
-            seat_state: SeatState::new(&globals, &qh),
-            output_state: OutputState::new(&globals, &qh),
+            registry_state: RegistryState::new(globals),
+            seat_state: SeatState::new(globals, &qh),
+            output_state: OutputState::new(globals, &qh),
             shm,
 
             exit: false,
@@ -486,7 +486,7 @@ impl Root {
             .frame(qh, self.layer.wl_surface().clone());
 
         if let Some(drawer) = &self.drawer {
-            drawer.commit(&self.layer.wl_surface());
+            drawer.commit(self.layer.wl_surface());
         }
 
         self.flag = false;

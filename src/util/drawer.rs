@@ -19,11 +19,9 @@ impl Error for DrawerError {}
 impl fmt::Display for DrawerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::OutOfBounds(size, idx) => write!(
-                f,
-                "Drawer out of bounds! Size is {}, index is {}",
-                size, idx
-            ),
+            Self::OutOfBounds(size, idx) => {
+                write!(f, "Drawer out of bounds! Size is {size}, index is {idx}",)
+            }
         }
     }
 }
@@ -54,7 +52,7 @@ impl Drawer {
 
     pub fn commit(&self, surface: &WlSurface) {
         if let Some(buffer) = &self.buffer {
-            buffer.attach_to(&surface).expect("buffer attach");
+            buffer.attach_to(surface).expect("buffer attach");
             surface.commit();
         }
     }

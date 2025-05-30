@@ -8,7 +8,7 @@ use crate::{root::Environment, util::Drawer};
 pub trait Widget {
     fn bind(&mut self, env: Rc<Environment>) -> Result<()>;
 
-    fn draw(&mut self, drawer: &mut Drawer) -> Result<()>;
+    fn draw(&self, drawer: &mut Drawer) -> Result<()>;
 
     fn data(&mut self) -> Result<&mut WidgetData>;
 }
@@ -27,21 +27,10 @@ pub enum WidgetError {
     InvalidBounds,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct WidgetData {
     pub position: (usize, usize),
     pub width: usize,
     pub height: usize,
     pub margin: (usize, usize, usize, usize),
-}
-
-impl Default for WidgetData {
-    fn default() -> Self {
-        WidgetData {
-            position: (0, 0),
-            width: 0,
-            height: 0,
-            margin: (0, 0, 0, 0),
-        }
-    }
 }
