@@ -1,0 +1,28 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "master", "ci"]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Dependecies
+      run: |
+        sudo apt update 
+        sudo apt install -y libfontconfig1-dev libxkbcommon-dev
+    - name: Build
+      run: |
+        cargo build --verbose --examples
+        cargo build --verbose --examples --release
+    - name: Run tests
+      run: cargo test --verbose
