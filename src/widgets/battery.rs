@@ -1,0 +1,246 @@
+use std::{cell::RefCell, ops::Add};
+
+use anyhow::Result;
+use battery::{Manager, State};
+
+use super::{
+    text::{Text, TextSettings},
+    widget::{Widget, WidgetNew}, WidgetData,
+};
+
+pub struct BatterySettings {
+    pub battery_not_charging: [char; 11],
+    pub battery_charging: [char; 11],
+
+    pub text: TextSettings,
+    pub icon: TextSettings,
+
+    pub data: WidgetData,
+}
+
+impl Default for BatterySettings {
+    fn default() -> Self {
+        Self {
+            battery_not_charging: ['󰂎', '󰁺', '󰁻', '󰁼', '󰁽', '󰁾', '󰁿', '󰂀', '󰂁', '󰂂', '󰁹'],
+            battery_charging: ['󰢟', '󰢜', '󰂆', '󰂇', '󰂈', '󰢝', '󰂉', '󰢞', '󰂊', '󰂋', '󰂅'],
+
+            text: TextSettings::default(),
+            icon: TextSettings::default(),
+
+            data: WidgetData::default()
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct BatteryInfo {
+    energy: f32,
+    full: f32,
+    state: State,
+}
+
+impl Add for BatteryInfo {
+    type Output = BatteryInfo;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut res = BatteryInfo::default();
+        res.energy = self.energy + rhs.energy;
+        res.full = self.full + rhs.full;
+
+        res.state = {
+            if self.state == State::Charging || rhs.state == State::Charging {
+                State::Charging
+            } else if self.state == State::Discharging || rhs.state == State::Discharging {
+                State::Discharging
+            } else if self.state == rhs.state {
+                self.state
+            } else if self.state == State::Unknown {
+                rhs.state
+            } else if rhs.state == State::Unknown {
+                self.state
+            } else {
+                State::Unknown
+            }
+        };
+
+        res
+    }
+}
+
+impl BatteryInfo {
+    pub fn percentage(&self) -> f32 {
+        self.energy / self.full
+    }
+}
+
+pub struct Battery {
+    manager: Manager,
+
+    icon: RefCell<Text>,
+    percent: RefCell<Text>,
+    settings: RefCell<BatterySettings>,
+
+    prev_charge: RefCell<i8>,
+}
+
+impl Battery {
+    pub fn get_info(&self) -> Option<BatteryInfo> {
+        Some(
+            self.manager
+                .batteries()
+                .ok()?
+                .filter_map(|battery| match battery {
+                    Ok(battery) => {
+                        let charge_rate = battery.state_of_charge().value;
+                        let full = battery.energy_full().value;
+                        Some(BatteryInfo {
+                            energy: charge_rate * full,
+                            full,
+                            state: battery.state(),
+                        })
+                    }
+                    Err(_) => None,
+                })
+                .fold(
+                    BatteryInfo {
+                        energy: 0.0,
+                        full: 0.0,
+                        state: battery::State::Unknown,
+                    },
+                    |acc, x| acc + x,
+                ),
+        )
+    }
+
+    fn align(&self) -> Result<()>{
+        let mut icon = self.icon.borrow_mut();
+        let mut text = self.percent.borrow_mut();
+
+        {
+            let icon_data = icon.data()?;
+            let text_data = text.data()?;
+            let data = &mut self.settings.borrow_mut().data;
+
+            icon_data.position.0 = data.position.0 + icon_data.margin.0;
+            icon_data.position.1 = data.position.1 + icon_data.margin.2;
+            text_data.position.0 = icon_data.position.0 + icon_data.width + icon_data.margin.1 + text_data.margin.0;
+            text_data.position.1 = data.position.1 + text_data.margin.2;
+
+            data.height = usize::max(
+                text_data.position.1 + text_data.height + text_data.margin.3,
+                icon_data.position.1 + icon_data.height + icon_data.margin.3
+            );
+
+            data.width = icon_data.margin.0 + icon_data.margin.1 + icon_data.width +
+                text_data.margin.0 + text_data.margin.1 + text_data.width;
+                            
+        }
+
+        Ok(())
+    }
+}
+
+impl Widget for Battery {
+    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
+        {
+            self.percent.borrow_mut().bind(env.clone())?;
+            self.icon.borrow_mut().bind(env)?;
+        }
+
+        self.align()
+    }
+
+    fn draw(&self, drawer: &mut crate::util::Drawer) -> anyhow::Result<()> {
+        let info = self.get_info();
+
+        let mut prev_charge = self.prev_charge.borrow_mut();
+        {
+            let mut text = self.percent.borrow_mut();
+            let mut icon = self.icon.borrow_mut();
+            let settings = self.settings.borrow_mut();
+            match info {
+                Some(i) => {
+                    let percentage: i8 = (i.percentage() * 100.0).round() as i8;
+
+                    if percentage != *prev_charge {
+                        icon.change_text(
+                            format!(
+                                "{}",
+                                match i.state {
+                                    State::Charging => settings.battery_charging,
+                                    _ => settings.battery_not_charging,
+                                }[(percentage / 10) as usize],
+                            )
+                            .as_str(),
+                        );
+                        text.change_text(
+                            format!(
+                                "{}",
+                                percentage
+                            )
+                            .as_str(),
+                        );
+                    }
+                }
+                None => {
+                    if *prev_charge != -1 {
+                        self.icon.borrow_mut().change_text("");
+                        text.change_text("ERR");
+                    }
+                    *prev_charge = -1;
+                }
+            };
+        }
+
+        self.align()?;
+        {
+            let text = self.percent.borrow_mut();
+            let icon = self.icon.borrow_mut();
+            icon.draw(drawer)?;
+            text.draw(drawer)
+        }
+    }
+
+    fn data(&mut self) -> anyhow::Result<&mut super::widget::WidgetData> {
+        Ok(&mut self.settings.get_mut().data)
+    }
+}
+
+impl WidgetNew for Battery {
+    type Settings = BatterySettings;
+
+    fn new(
+        env: Option<std::rc::Rc<crate::root::Environment>>,
+        settings: Self::Settings,
+    ) -> anyhow::Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            manager: Manager::new()?,
+
+            icon: RefCell::new(Text::new(
+                env.clone(),
+                TextSettings {
+                    text: "󰂎".to_string(),
+                    fontid: 1,
+                    ..settings.text.clone()
+                },
+            )?),
+            percent: RefCell::new(Text::new(
+                env,
+                TextSettings {
+                    text: "Err".to_string(),
+
+                    data: WidgetData {
+                        margin: (5,0,2,0),
+                        ..WidgetData::default()
+                    },
+                    ..settings.text.clone()
+                },
+            )?),
+
+            settings: RefCell::new(settings),
+            prev_charge: RefCell::new(0),
+        })
+    }
+}

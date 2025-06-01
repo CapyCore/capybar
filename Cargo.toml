@@ -20,3 +20,5 @@ fontconfig = "0.9.0"
 fontdue = "0.9.3"
 #Clock
 chrono = "0.4.41"
+#Battery
+battery = "0.7.8"

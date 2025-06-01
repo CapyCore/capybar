@@ -13,7 +13,7 @@ pub enum FontsError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error("Font {0} was not found")]
-    FontNotFound(String),
+    FontNotFound(&'static str),
 }
 
 impl Fonts {
@@ -26,8 +26,8 @@ impl Fonts {
         })
     }
 
-    pub fn add_font_by_name(&mut self, name: String) -> Result<(), FontsError> {
-        let font = match self.fontconfig.find("Mono", None) {
+    pub fn add_font_by_name(&mut self, name: &'static str) -> Result<(), FontsError> {
+        let font = match self.fontconfig.find(name, None) {
             Some(f) => f,
             None => return Err(FontsError::FontNotFound(name)),
         };
@@ -45,7 +45,8 @@ impl Fonts {
         )
         .unwrap();
 
-        (*Rc::get_mut(&mut self.fonts).unwrap()).push(font);
+        let a = Rc::get_mut(&mut self.fonts).unwrap();
+        a.push(font);
 
         Ok(())
     }

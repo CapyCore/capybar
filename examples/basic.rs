@@ -1,6 +1,7 @@
 use capybar::{
     util::Color,
     widgets::{
+        battery::{Battery, BatterySettings},
         clock::{Clock, ClockSettings},
         containers::row::{Row, RowSettings},
         text::{Text, TextSettings},
@@ -29,7 +30,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut bar = Root::new(&globals, &mut event_queue)?;
 
-    bar.add_font_by_name("Mono".to_string())?;
+    bar.add_font_by_name("mono")?;
+    bar.add_font_by_name("jetbrainsmononerdfont")?;
+
 
     let mut row = Row::new(
         None,
@@ -72,18 +75,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     row.create_child(
-        Text::new,
-        TextSettings {
-            text: "Battery placeholder".to_string(),
-            color: catpuccin_mocha.font,
-            size: 25.0,
+        Battery::new,
+        BatterySettings {
+            text: TextSettings {
+                color: catpuccin_mocha.font,
+                size: 25.0,
 
+                ..TextSettings::default()
+            },
+            icon: TextSettings {
+                color: catpuccin_mocha.font,
+                size: 25.0,
+
+                ..TextSettings::default()
+            },
             data: WidgetData {
-                margin: (0, 10, 0, 0),
+                margin: (0,10,0,0),
                 ..WidgetData::default()
             },
-
-            ..TextSettings::default()
+            ..BatterySettings::default()
         },
     )?;
 

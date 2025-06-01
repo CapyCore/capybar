@@ -7,3 +7,4 @@ pub mod clock;
 
 pub mod containers;
 
+pub mod battery;

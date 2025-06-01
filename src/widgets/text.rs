@@ -13,13 +13,14 @@ use crate::{
 
 use super::{WidgetData, WidgetNew};
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TextSettings {
     pub data: WidgetData,
     pub text: String,
     pub background: Option<Color>,
     pub color: Color,
     pub size: f32,
+    pub fontid: usize,
 }
 
 #[derive(Debug, Error)]
@@ -48,8 +49,23 @@ impl Text {
         if let Some(ref mut env) = self.env {
             self.layout.append(
                 &env.fonts.fonts(),
-                &TextStyle::new(text, self.settings.size, 0),
+                &TextStyle::new(text, self.settings.size, self.settings.fontid),
             );
+        }
+
+        self.update_width();
+        self.settings.data.height = self.layout.height() as usize;
+    }
+
+    fn update_width(&mut self) {
+        self.settings.data.width = 0;
+        if let Some(lines) = self.layout.lines() {
+            for line in lines {
+                let glyph = self.layout.glyphs()[line.glyph_end];
+                let width = glyph.width + glyph.x.ceil() as usize;
+
+                self.settings.data.width = usize::max(self.settings.data.width, width);
+            }
         }
     }
 }
@@ -61,19 +77,15 @@ impl Widget for Text {
         let env = self.env.as_mut().unwrap();
         self.layout.append(
             &env.fonts.fonts(),
-            &TextStyle::new(&self.settings.text, self.settings.size, 0),
+            &TextStyle::new(
+                &self.settings.text,
+                self.settings.size,
+                self.settings.fontid,
+            ),
         );
 
+        self.update_width();
         self.settings.data.height = self.layout.height() as usize;
-        self.settings.data.width = 0;
-        if let Some(lines) = self.layout.lines() {
-            for line in lines {
-                let glyph = self.layout.glyphs()[line.glyph_end];
-                let width = glyph.width + glyph.x.ceil() as usize;
-
-                self.settings.data.width = usize::max(self.settings.data.width, width);
-            }
-        }
 
         Ok(())
     }
@@ -81,7 +93,7 @@ impl Widget for Text {
     fn draw(&self, drawer: &mut Drawer) -> Result<()> {
         let env = self.env.as_ref().unwrap();
         let fonts = env.fonts.fonts();
-        let font = &fonts[0];
+        let font = &fonts[self.settings.fontid];
         let data = &self.settings.data;
 
         if let Some(color) = self.settings.background {
@@ -107,7 +119,7 @@ impl Widget for Text {
 impl WidgetNew for Text {
     type Settings = TextSettings;
 
-    fn new(mut env: Option<Rc<Environment>>, mut settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
     where
         Self: Sized,
     {
@@ -121,20 +133,16 @@ impl WidgetNew for Text {
             ..LayoutSettings::default()
         });
 
-        if let Some(ref mut env) = env {
-            layout.append(
-                &env.fonts.fonts(),
-                &TextStyle::new(&settings.text, settings.size, 0),
-            );
-
-            settings.data.height = layout.height() as usize;
-        }
-
-        Ok(Text {
+        let mut text = Text {
             layout,
 
             settings,
-            env,
-        })
+            env: None,
+        };
+
+        if let Some(e) = env {
+            text.bind(e)?;
+        }
+        Ok(text)
     }
 }

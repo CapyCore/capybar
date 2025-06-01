@@ -438,8 +438,8 @@ impl Root {
         Ok(self)
     }
 
-    pub fn add_font_by_name(&mut self, name: String) -> Result<(), FontsError> {
-        self.fonts.add_font_by_name(name.clone())?;
+    pub fn add_font_by_name(&mut self, name: &'static str) -> Result<(), FontsError> {
+        self.fonts.add_font_by_name(name)?;
         Rc::get_mut(&mut self.env)
             .unwrap()
             .fonts
