@@ -19,7 +19,7 @@ jobs:
     - name: Dependecies
       run: |
         sudo apt update 
-        sudo apt install -y libfontconfig1-dev
+        sudo apt install -y libfontconfig1-dev libxkbcommon-dev
     - name: Build
       run: cargo build --verbose
     - name: Run tests
