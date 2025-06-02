@@ -1,11 +1,7 @@
 use capybar::{
     util::Color,
     widgets::{
-        battery::{Battery, BatterySettings},
-        clock::{Clock, ClockSettings},
-        containers::row::{Row, RowSettings},
-        text::{Text, TextSettings},
-        WidgetData, WidgetNew,
+        battery::{Battery, BatterySettings}, clock::{Clock, ClockSettings}, containers::row::{Row, RowSettings}, cpu::{CPUSettings, CPU}, text::{Text, TextSettings}, WidgetData, WidgetNew
     },
     Root,
 };
@@ -70,6 +66,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             size: 25.0,
 
             ..ClockSettings::default()
+        },
+    )?;
+
+    row.create_child(
+        CPU::new,
+        CPUSettings {
+            text: TextSettings {
+                color: catpuccin_mocha.font,
+                size: 25.0,
+
+                ..TextSettings::default()
+            },
+            icon: TextSettings {
+                color: catpuccin_mocha.font,
+                size: 25.0,
+
+                ..TextSettings::default()
+            },
+            default_data: WidgetData {
+                margin: (0, 10, 0, 0),
+                ..WidgetData::default()
+            },
         },
     )?;
 
