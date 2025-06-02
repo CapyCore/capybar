@@ -30,13 +30,13 @@ impl Default for ClockSettings {
 }
 
 pub struct Clock {
-    label: RefCell<Text>,
+    text: RefCell<Text>,
     settings: ClockSettings,
 }
 
 impl Clock {
     pub fn update(&self) -> &Self {
-        self.label
+        self.text
             .borrow_mut()
             .change_text(&Local::now().format(&self.settings.format).to_string());
 
@@ -46,16 +46,20 @@ impl Clock {
 
 impl Widget for Clock {
     fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
-        self.label.borrow_mut().bind(env)
+        self.text.borrow_mut().bind(env)
+    }
+
+    fn init(&self) -> Result<()> {
+        self.text.borrow_mut().init()
     }
 
     fn draw(&self, drawer: &mut Drawer) -> Result<()> {
         self.update();
-        self.label.borrow_mut().draw(drawer)
+        self.text.borrow_mut().draw(drawer)
     }
 
     fn data(&mut self) -> Result<&mut WidgetData> {
-        self.label.get_mut().data()
+        self.text.get_mut().data()
     }
 }
 
@@ -67,14 +71,14 @@ impl WidgetNew for Clock {
         Self: Sized,
     {
         Ok(Clock {
-            label: RefCell::new(Text::new(
+            text: RefCell::new(Text::new(
                 env,
                 TextSettings {
                     text: Local::now().format(&settings.format).to_string(),
                     color: settings.font_color,
                     size: settings.size,
 
-                    data: WidgetData {
+                    default_data: WidgetData {
                         width: (settings.size * 6.0) as usize,
                         ..WidgetData::default()
                     },

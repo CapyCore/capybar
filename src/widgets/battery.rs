@@ -5,7 +5,8 @@ use battery::{Manager, State};
 
 use super::{
     text::{Text, TextSettings},
-    widget::{Widget, WidgetNew}, WidgetData,
+    widget::{Widget, WidgetNew},
+    WidgetData,
 };
 
 pub struct BatterySettings {
@@ -15,7 +16,7 @@ pub struct BatterySettings {
     pub text: TextSettings,
     pub icon: TextSettings,
 
-    pub data: WidgetData,
+    pub default_data: WidgetData,
 }
 
 impl Default for BatterySettings {
@@ -27,7 +28,7 @@ impl Default for BatterySettings {
             text: TextSettings::default(),
             icon: TextSettings::default(),
 
-            data: WidgetData::default()
+            default_data: WidgetData::default(),
         }
     }
 }
@@ -42,27 +43,25 @@ pub struct BatteryInfo {
 impl Add for BatteryInfo {
     type Output = BatteryInfo;
     fn add(self, rhs: Self) -> Self::Output {
-        let mut res = BatteryInfo::default();
-        res.energy = self.energy + rhs.energy;
-        res.full = self.full + rhs.full;
-
-        res.state = {
-            if self.state == State::Charging || rhs.state == State::Charging {
-                State::Charging
-            } else if self.state == State::Discharging || rhs.state == State::Discharging {
-                State::Discharging
-            } else if self.state == rhs.state {
-                self.state
-            } else if self.state == State::Unknown {
-                rhs.state
-            } else if rhs.state == State::Unknown {
-                self.state
-            } else {
-                State::Unknown
-            }
-        };
-
-        res
+        BatteryInfo{
+            energy: self.energy + rhs.energy,
+            full: self.full + rhs.full,
+            state: {
+                if self.state == State::Charging || rhs.state == State::Charging {
+                    State::Charging
+                } else if self.state == State::Discharging || rhs.state == State::Discharging {
+                    State::Discharging
+                } else if self.state == rhs.state {
+                    self.state
+                } else if self.state == State::Unknown {
+                    rhs.state
+                } else if rhs.state == State::Unknown {
+                    self.state
+                } else {
+                    State::Unknown
+                }
+            },
+        }
     }
 }
 
@@ -77,7 +76,8 @@ pub struct Battery {
 
     icon: RefCell<Text>,
     percent: RefCell<Text>,
-    settings: RefCell<BatterySettings>,
+    settings: BatterySettings,
+    data: RefCell<WidgetData>,
 
     prev_charge: RefCell<i8>,
 }
@@ -111,29 +111,31 @@ impl Battery {
         )
     }
 
-    fn align(&self) -> Result<()>{
+    fn align(&self) -> Result<()> {
         let mut icon = self.icon.borrow_mut();
         let mut text = self.percent.borrow_mut();
 
-        {
-            let icon_data = icon.data()?;
-            let text_data = text.data()?;
-            let data = &mut self.settings.borrow_mut().data;
+        let icon_data = icon.data()?;
+        let text_data = text.data()?;
+        let data = &mut self.data.borrow_mut();
 
-            icon_data.position.0 = data.position.0 + icon_data.margin.0;
-            icon_data.position.1 = data.position.1 + icon_data.margin.2;
-            text_data.position.0 = icon_data.position.0 + icon_data.width + icon_data.margin.1 + text_data.margin.0;
-            text_data.position.1 = data.position.1 + text_data.margin.2;
+        icon_data.position.0 = data.position.0 + icon_data.margin.0;
+        icon_data.position.1 = data.position.1 + icon_data.margin.2;
+        text_data.position.0 =
+            icon_data.position.0 + icon_data.width + icon_data.margin.1 + text_data.margin.0;
+        text_data.position.1 = data.position.1 + text_data.margin.2;
 
-            data.height = usize::max(
-                text_data.position.1 + text_data.height + text_data.margin.3,
-                icon_data.position.1 + icon_data.height + icon_data.margin.3
-            );
+        data.height = usize::max(
+            text_data.position.1 + text_data.height + text_data.margin.3,
+            icon_data.position.1 + icon_data.height + icon_data.margin.3,
+        );
 
-            data.width = icon_data.margin.0 + icon_data.margin.1 + icon_data.width +
-                text_data.margin.0 + text_data.margin.1 + text_data.width;
-                            
-        }
+        data.width = icon_data.margin.0
+            + icon_data.margin.1
+            + icon_data.width
+            + text_data.margin.0
+            + text_data.margin.1
+            + text_data.width;
 
         Ok(())
     }
@@ -141,10 +143,13 @@ impl Battery {
 
 impl Widget for Battery {
     fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
-        {
-            self.percent.borrow_mut().bind(env.clone())?;
-            self.icon.borrow_mut().bind(env)?;
-        }
+        self.percent.borrow_mut().bind(env.clone())?;
+        self.icon.borrow_mut().bind(env)
+    }
+
+    fn init(&self) -> Result<()> {
+        self.icon.borrow_mut().init()?;
+        self.percent.borrow_mut().init()?;
 
         self.align()
     }
@@ -156,7 +161,6 @@ impl Widget for Battery {
         {
             let mut text = self.percent.borrow_mut();
             let mut icon = self.icon.borrow_mut();
-            let settings = self.settings.borrow_mut();
             match info {
                 Some(i) => {
                     let percentage: i8 = (i.percentage() * 100.0).round() as i8;
@@ -166,19 +170,13 @@ impl Widget for Battery {
                             format!(
                                 "{}",
                                 match i.state {
-                                    State::Charging => settings.battery_charging,
-                                    _ => settings.battery_not_charging,
+                                    State::Charging => self.settings.battery_charging,
+                                    _ => self.settings.battery_not_charging,
                                 }[(percentage / 10) as usize],
                             )
                             .as_str(),
                         );
-                        text.change_text(
-                            format!(
-                                "{}",
-                                percentage
-                            )
-                            .as_str(),
-                        );
+                        text.change_text(format!("{percentage}").as_str());
                     }
                 }
                 None => {
@@ -192,16 +190,12 @@ impl Widget for Battery {
         }
 
         self.align()?;
-        {
-            let text = self.percent.borrow_mut();
-            let icon = self.icon.borrow_mut();
-            icon.draw(drawer)?;
-            text.draw(drawer)
-        }
+        self.percent.borrow_mut().draw(drawer)?;
+        self.icon.borrow_mut().draw(drawer)
     }
 
     fn data(&mut self) -> anyhow::Result<&mut super::widget::WidgetData> {
-        Ok(&mut self.settings.get_mut().data)
+        Ok(self.data.get_mut())
     }
 }
 
@@ -231,15 +225,16 @@ impl WidgetNew for Battery {
                 TextSettings {
                     text: "Err".to_string(),
 
-                    data: WidgetData {
-                        margin: (5,0,2,0),
+                    default_data: WidgetData {
+                        margin: (5, 0, 2, 0),
                         ..WidgetData::default()
                     },
                     ..settings.text.clone()
                 },
             )?),
 
-            settings: RefCell::new(settings),
+            data: RefCell::new(settings.default_data),
+            settings,
             prev_charge: RefCell::new(0),
         })
     }

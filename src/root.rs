@@ -392,6 +392,7 @@ impl Root {
         self.height = 0;
 
         for widget in &mut self.widgets {
+            widget.init()?;
             let data = widget.data()?;
             self.height = max(
                 self.height,

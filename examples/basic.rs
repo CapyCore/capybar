@@ -33,14 +33,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     bar.add_font_by_name("mono")?;
     bar.add_font_by_name("jetbrainsmononerdfont")?;
 
-
     let mut row = Row::new(
         None,
         RowSettings {
             background: Some(catpuccin_mocha.background),
             border: Some((2, catpuccin_mocha.border)),
             alignment: capybar::widgets::containers::row::Alignment::CenteringHorizontal,
-            data: WidgetData {
+            default_data: WidgetData {
                 width: 1920,
                 ..WidgetData::default()
             },
@@ -55,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             color: catpuccin_mocha.font,
             size: 25.0,
 
-            data: WidgetData {
+            default_data: WidgetData {
                 margin: (10, 0, 0, 0),
                 ..WidgetData::default()
             },
@@ -89,8 +88,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 ..TextSettings::default()
             },
-            data: WidgetData {
-                margin: (0,10,0,0),
+            default_data: WidgetData {
+                margin: (0, 10, 0, 0),
                 ..WidgetData::default()
             },
             ..BatterySettings::default()

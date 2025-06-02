@@ -7,9 +7,8 @@ use crate::{root::Environment, util::Drawer};
 
 pub trait Widget {
     fn bind(&mut self, env: Rc<Environment>) -> Result<()>;
-
     fn draw(&self, drawer: &mut Drawer) -> Result<()>;
-
+    fn init(&self) -> Result<()>;
     fn data(&mut self) -> Result<&mut WidgetData>;
 }
 

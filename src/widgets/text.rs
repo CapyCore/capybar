@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
@@ -15,7 +15,7 @@ use super::{WidgetData, WidgetNew};
 
 #[derive(Debug, Default, Clone)]
 pub struct TextSettings {
-    pub data: WidgetData,
+    pub default_data: WidgetData,
     pub text: String,
     pub background: Option<Color>,
     pub color: Color,
@@ -30,6 +30,7 @@ pub struct Text {
     layout: Layout,
 
     settings: TextSettings,
+    data: RefCell<WidgetData>,
     env: Option<Rc<Environment>>,
 }
 
@@ -54,17 +55,18 @@ impl Text {
         }
 
         self.update_width();
-        self.settings.data.height = self.layout.height() as usize;
+        self.data.borrow_mut().height = self.layout.height() as usize;
     }
 
-    fn update_width(&mut self) {
-        self.settings.data.width = 0;
+    fn update_width(&self) {
+        let mut data = self.data.borrow_mut();
+        data.width = 0;
         if let Some(lines) = self.layout.lines() {
             for line in lines {
                 let glyph = self.layout.glyphs()[line.glyph_end];
                 let width = glyph.width + glyph.x.ceil() as usize;
 
-                self.settings.data.width = usize::max(self.settings.data.width, width);
+                data.width = usize::max(data.width, width);
             }
         }
     }
@@ -84,8 +86,12 @@ impl Widget for Text {
             ),
         );
 
+        Ok(())
+    }
+
+    fn init(&self) -> Result<()> {
         self.update_width();
-        self.settings.data.height = self.layout.height() as usize;
+        self.data.borrow_mut().height = self.layout.height() as usize;
 
         Ok(())
     }
@@ -94,7 +100,7 @@ impl Widget for Text {
         let env = self.env.as_ref().unwrap();
         let fonts = env.fonts.fonts();
         let font = &fonts[self.settings.fontid];
-        let data = &self.settings.data;
+        let data = &self.data.borrow_mut();
 
         if let Some(color) = self.settings.background {
             for x in 0..data.width {
@@ -112,7 +118,7 @@ impl Widget for Text {
     }
 
     fn data(&mut self) -> Result<&mut WidgetData> {
-        Ok(&mut self.settings.data)
+        Ok(self.data.get_mut())
     }
 }
 
@@ -126,7 +132,7 @@ impl WidgetNew for Text {
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
 
         layout.reset(&LayoutSettings {
-            max_width: match settings.data.width {
+            max_width: match settings.default_data.width {
                 0 => None,
                 width => Some(width as f32),
             },
@@ -136,6 +142,7 @@ impl WidgetNew for Text {
         let mut text = Text {
             layout,
 
+            data: RefCell::new(settings.default_data),
             settings,
             env: None,
         };
