@@ -11,16 +11,17 @@ use crate::{
     widgets::Widget,
 };
 
-use super::{WidgetData, WidgetNew};
+use super::{Style, WidgetData, WidgetNew};
 
 #[derive(Debug, Default, Clone)]
 pub struct TextSettings {
     pub default_data: WidgetData,
     pub text: String,
-    pub background: Option<Color>,
-    pub color: Color,
+    pub font_color: Color,
     pub size: f32,
     pub fontid: usize,
+
+    pub style: Style,
 }
 
 #[derive(Debug, Error)]
@@ -102,7 +103,7 @@ impl Widget for Text {
         let font = &fonts[self.settings.fontid];
         let data = &self.data.borrow_mut();
 
-        if let Some(color) = self.settings.background {
+        if let Some(color) = self.settings.style.background {
             for x in 0..data.width {
                 for y in 0..data.height {
                     drawer.draw_pixel(data, (x, y), color);
@@ -111,14 +112,14 @@ impl Widget for Text {
         }
 
         for glyph in self.layout.glyphs() {
-            drawer.draw_glyph(data, glyph, font, self.settings.color);
+            drawer.draw_glyph(data, glyph, font, self.settings.font_color);
         }
 
         Ok(())
     }
 
-    fn data(&mut self) -> Result<&mut WidgetData> {
-        Ok(self.data.get_mut())
+    fn data(&self) -> &RefCell<WidgetData> {
+        &self.data
     }
 }
 

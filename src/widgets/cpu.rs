@@ -5,19 +5,21 @@ use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use super::{
     text::{Text, TextSettings},
-    Widget, WidgetData, WidgetNew,
+    Style, Widget, WidgetData, WidgetNew,
 };
 
+#[derive(Debug, Default, Clone)]
 pub struct CPUSettings {
     pub default_data: WidgetData,
 
     pub text: TextSettings,
     pub icon: TextSettings,
+
+    pub style: Style,
 }
 
 pub struct CPU {
     data: RefCell<WidgetData>,
-    settings: CPUSettings,
 
     icon: RefCell<Text>,
     percent: RefCell<Text>,
@@ -33,11 +35,11 @@ impl CPU {
     }
 
     fn align(&self) -> Result<()> {
-        let mut icon = self.icon.borrow_mut();
-        let mut text = self.percent.borrow_mut();
+        let icon = self.icon.borrow_mut();
+        let text = self.percent.borrow_mut();
 
-        let icon_data = icon.data()?;
-        let text_data = text.data()?;
+        let mut icon_data = icon.data().borrow_mut();
+        let mut text_data = text.data().borrow_mut();
         let data = &mut self.data.borrow_mut();
 
         icon_data.position.0 = data.position.0 + icon_data.margin.0;
@@ -93,8 +95,8 @@ impl Widget for CPU {
         self.icon.borrow_mut().draw(drawer)
     }
 
-    fn data(&mut self) -> anyhow::Result<&mut super::WidgetData> {
-        Ok(self.data.get_mut())
+    fn data(&self) -> &RefCell<WidgetData> {
+        &self.data
     }
 }
 
@@ -131,7 +133,6 @@ impl WidgetNew for CPU {
                 },
             )?),
 
-            settings,
             sys: RefCell::new(System::new_with_specifics(
                 RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
             )),

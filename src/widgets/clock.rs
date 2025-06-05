@@ -16,6 +16,8 @@ pub struct ClockSettings {
     pub format: String,
 
     pub font_color: Color,
+
+    pub default_data: WidgetData,
 }
 
 impl Default for ClockSettings {
@@ -25,6 +27,8 @@ impl Default for ClockSettings {
             format: "%H:%M:%S".to_string(),
 
             font_color: Color::BLACK,
+
+            default_data: WidgetData::default(),
         }
     }
 }
@@ -32,13 +36,15 @@ impl Default for ClockSettings {
 pub struct Clock {
     text: RefCell<Text>,
     settings: ClockSettings,
+
+    data: RefCell<WidgetData>,
 }
 
 impl Clock {
     pub fn update(&self) -> &Self {
-        self.text
-            .borrow_mut()
-            .change_text(&Local::now().format(&self.settings.format).to_string());
+        let mut text = self.text.borrow_mut();
+        text.change_text(&Local::now().format(&self.settings.format).to_string());
+        text.data().borrow_mut().position = self.data.borrow_mut().position;
 
         self
     }
@@ -50,7 +56,17 @@ impl Widget for Clock {
     }
 
     fn init(&self) -> Result<()> {
-        self.text.borrow_mut().init()
+        let text = self.text.borrow_mut();
+
+        text.init()?;
+
+        let text_data = text.data().borrow_mut();
+        let mut data = self.data.borrow_mut();
+
+        data.width = text_data.width;
+        data.height = text_data.height;
+
+        Ok(())
     }
 
     fn draw(&self, drawer: &mut Drawer) -> Result<()> {
@@ -58,8 +74,8 @@ impl Widget for Clock {
         self.text.borrow_mut().draw(drawer)
     }
 
-    fn data(&mut self) -> Result<&mut WidgetData> {
-        self.text.get_mut().data()
+    fn data(&self) -> &RefCell<WidgetData> {
+        &self.data
     }
 }
 
@@ -70,22 +86,24 @@ impl WidgetNew for Clock {
     where
         Self: Sized,
     {
-        Ok(Clock {
-            text: RefCell::new(Text::new(
-                env,
-                TextSettings {
-                    text: Local::now().format(&settings.format).to_string(),
-                    color: settings.font_color,
-                    size: settings.size,
+        let text = RefCell::new(Text::new(
+            env,
+            TextSettings {
+                text: Local::now().format(&settings.format).to_string(),
+                font_color: settings.font_color,
+                size: settings.size,
 
-                    default_data: WidgetData {
-                        width: (settings.size * 6.0) as usize,
-                        ..WidgetData::default()
-                    },
-
-                    ..TextSettings::default()
+                default_data: WidgetData {
+                    width: (settings.size * 6.0) as usize,
+                    ..WidgetData::default()
                 },
-            )?),
+
+                ..TextSettings::default()
+            },
+        )?);
+        Ok(Clock {
+            text,
+            data: RefCell::new(settings.default_data),
             settings,
         })
     }

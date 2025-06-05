@@ -6,7 +6,7 @@ use battery::{Manager, State};
 use super::{
     text::{Text, TextSettings},
     widget::{Widget, WidgetNew},
-    WidgetData,
+    Style, WidgetData, WidgetStyled,
 };
 
 pub struct BatterySettings {
@@ -17,6 +17,8 @@ pub struct BatterySettings {
     pub icon: TextSettings,
 
     pub default_data: WidgetData,
+
+    pub style: Style,
 }
 
 impl Default for BatterySettings {
@@ -29,6 +31,8 @@ impl Default for BatterySettings {
             icon: TextSettings::default(),
 
             default_data: WidgetData::default(),
+
+            style: Style::default(),
         }
     }
 }
@@ -112,36 +116,40 @@ impl Battery {
     }
 
     fn align(&self) -> Result<()> {
-        let mut icon = self.icon.borrow_mut();
-        let mut text = self.percent.borrow_mut();
+        let icon = self.icon.borrow_mut();
+        let mut icon_data = icon.data().borrow_mut();
+        let percent = self.percent.borrow_mut();
+        let mut percent_data = percent.data().borrow_mut();
 
-        let icon_data = icon.data()?;
-        let text_data = text.data()?;
         let data = &mut self.data.borrow_mut();
 
         icon_data.position.0 = data.position.0 + icon_data.margin.0;
         icon_data.position.1 = data.position.1 + icon_data.margin.2;
-        text_data.position.0 =
-            icon_data.position.0 + icon_data.width + icon_data.margin.1 + text_data.margin.0;
-        text_data.position.1 = data.position.1 + text_data.margin.2;
+        percent_data.position.0 =
+            icon_data.position.0 + icon_data.width + icon_data.margin.1 + percent_data.margin.0;
+        percent_data.position.1 = data.position.1 + percent_data.margin.2;
 
         data.height = usize::max(
-            text_data.position.1 + text_data.height + text_data.margin.3,
+            percent_data.position.1 + percent_data.height + percent_data.margin.3,
             icon_data.position.1 + icon_data.height + icon_data.margin.3,
         );
 
         data.width = icon_data.margin.0
             + icon_data.margin.1
             + icon_data.width
-            + text_data.margin.0
-            + text_data.margin.1
-            + text_data.width;
+            + percent_data.margin.0
+            + percent_data.margin.1
+            + percent_data.width;
 
         Ok(())
     }
 }
 
 impl Widget for Battery {
+    fn data(&self) -> &RefCell<WidgetData> {
+        &self.data
+    }
+
     fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
         self.percent.borrow_mut().bind(env.clone())?;
         self.icon.borrow_mut().bind(env)
@@ -151,7 +159,10 @@ impl Widget for Battery {
         self.icon.borrow_mut().init()?;
         self.percent.borrow_mut().init()?;
 
-        self.align()
+        self.apply_style()?;
+        self.align()?;
+
+        Ok(())
     }
 
     fn draw(&self, drawer: &mut crate::util::Drawer) -> anyhow::Result<()> {
@@ -193,10 +204,6 @@ impl Widget for Battery {
         self.percent.borrow_mut().draw(drawer)?;
         self.icon.borrow_mut().draw(drawer)
     }
-
-    fn data(&mut self) -> anyhow::Result<&mut super::widget::WidgetData> {
-        Ok(self.data.get_mut())
-    }
 }
 
 impl WidgetNew for Battery {
@@ -237,5 +244,15 @@ impl WidgetNew for Battery {
             settings,
             prev_charge: RefCell::new(0),
         })
+    }
+}
+
+impl WidgetStyled for Battery {
+    fn style(&self) -> &Style {
+        &self.settings.style
+    }
+
+    fn style_mut(&mut self) -> &mut Style {
+        &mut self.settings.style
     }
 }

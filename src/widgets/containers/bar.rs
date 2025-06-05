@@ -4,8 +4,7 @@ use anyhow::Result;
 
 use crate::{
     root::Environment,
-    util::Color,
-    widgets::{Widget, WidgetData, WidgetNew},
+    widgets::{Style, Widget, WidgetData, WidgetNew},
 };
 
 use super::{
@@ -13,13 +12,13 @@ use super::{
     row::{Alignment, Row, RowSettings},
 };
 
+#[derive(Debug, Clone)]
 pub struct BarSettings {
     pub default_data: WidgetData,
 
     pub padding: (usize, usize, usize),
 
-    pub background: Option<Color>,
-    pub border: Option<(usize, Color)>,
+    pub style: Style,
 }
 
 impl Default for BarSettings {
@@ -27,8 +26,7 @@ impl Default for BarSettings {
         Self {
             default_data: WidgetData::default(),
             padding: (10, 10, 10),
-            background: None,
-            border: None,
+            style: Style::default(),
         }
     }
 }
@@ -94,12 +92,12 @@ impl Widget for Bar {
     fn draw(&self, drawer: &mut crate::util::Drawer) -> anyhow::Result<()> {
         let data = self.data.borrow_mut();
 
-        let border = match self.settings.border {
+        let border = match self.settings.style.border {
             Some(a) => (a.0, Some(a.1)),
             None => (0, None),
         };
 
-        if let Some(color) = self.settings.background {
+        if let Some(color) = self.settings.style.background {
             for x in border.0..data.width - border.0 {
                 for y in border.0..data.height - border.0 {
                     drawer.draw_pixel(&data, (x, y), color);
@@ -123,21 +121,37 @@ impl Widget for Bar {
             }
         }
 
-        self.left.borrow_mut().draw(drawer)?;
+        {
+            let left = self.left.borrow_mut();
+            {
+                let mut ld = left.data().borrow_mut();
+
+                ld.position.0 = data.position.0 + border.0;
+                ld.position.1 = data.position.1 + border.0;
+            }
+
+            left.draw(drawer)?;
+        }
 
         {
-            let mut center = self.center.borrow_mut();
-            let cd = center.data()?;
+            let center = self.center.borrow_mut();
+            {
+                let mut cd = center.data().borrow_mut();
 
-            cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
-
+                cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
+                cd.position.1 = data.position.1 + border.0;
+            }
             center.draw(drawer)?;
         }
 
         {
-            let mut right = self.right.borrow_mut();
-            right.data()?.position.0 = data.position.0 + data.width;
+            let right = self.right.borrow_mut();
+            {
+                let mut rd = right.data().borrow_mut();
 
+                rd.position.0 = data.position.0 + data.width - border.0;
+                rd.position.1 = data.position.1 + border.0;
+            }
             right.draw(drawer)?;
         }
 
@@ -145,29 +159,34 @@ impl Widget for Bar {
     }
 
     fn init(&self) -> anyhow::Result<()> {
-        let mut left = self.left.borrow_mut();
-        let mut center = self.center.borrow_mut();
-        let mut right = self.right.borrow_mut();
+        let left = self.left.borrow_mut();
+        let center = self.center.borrow_mut();
+        let right = self.right.borrow_mut();
         left.init()?;
         center.init()?;
         right.init()?;
 
+        let border = match self.settings.style.border {
+            Some(a) => (a.0, Some(a.1)),
+            None => (0, None),
+        };
+
         let mut data = self.data.borrow_mut();
         data.height = *[
-            5,
-            left.data()?.height,
-            center.data()?.height,
-            right.data()?.height,
+            left.data().borrow_mut().height,
+            center.data().borrow_mut().height,
+            right.data().borrow_mut().height,
         ]
         .iter()
         .max_by(|a, b| a.cmp(b))
-        .unwrap();
+        .unwrap()
+            + 2 * border.0;
 
         Ok(())
     }
 
-    fn data(&mut self) -> anyhow::Result<&mut crate::widgets::WidgetData> {
-        Ok(self.data.get_mut())
+    fn data(&self) -> &RefCell<WidgetData> {
+        &self.data
     }
 }
 

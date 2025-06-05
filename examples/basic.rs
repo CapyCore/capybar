@@ -1,17 +1,12 @@
-use std::sync::Barrier;
-
 use capybar::{
     util::Color,
     widgets::{
         battery::{Battery, BatterySettings},
         clock::{Clock, ClockSettings},
-        containers::{
-            bar::{Bar, BarSettings},
-            row::{Row, RowSettings},
-        },
+        containers::bar::{Bar, BarSettings},
         cpu::{CPUSettings, CPU},
-        text::{Text, TextSettings},
-        WidgetData, WidgetNew,
+        text::TextSettings,
+        Style, WidgetData, WidgetNew,
     },
     Root,
 };
@@ -27,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catpuccin_mocha = Palete {
         background: Color::from_hex(0x1e1e2eff),
         border: Color::from_hex(0x74c7ecff),
-        font: Color::from_hex(0xf5e0dc00),
+        font: Color::from_hex(0xf5e0dcff),
     };
 
     // this method needs to be inside main() method
@@ -47,7 +42,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..WidgetData::default()
             },
             padding: (10, 10, 10),
-            background: Some(catpuccin_mocha.background),
+
+            style: Style {
+                background: Some(catpuccin_mocha.background),
+                border: Some((1, catpuccin_mocha.border)),
+
+                ..Style::default()
+            },
 
             ..BarSettings::default()
         },
@@ -57,13 +58,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         CPU::new,
         CPUSettings {
             text: TextSettings {
-                color: catpuccin_mocha.font,
+                font_color: catpuccin_mocha.font,
                 size: 25.0,
 
                 ..TextSettings::default()
             },
             icon: TextSettings {
-                color: catpuccin_mocha.font,
+                font_color: catpuccin_mocha.font,
                 size: 25.0,
 
                 ..TextSettings::default()
@@ -72,6 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 margin: (10, 0, 0, 0),
                 ..WidgetData::default()
             },
+            ..CPUSettings::default()
         },
     )?;
 
@@ -89,13 +91,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Battery::new,
         BatterySettings {
             text: TextSettings {
-                color: catpuccin_mocha.font,
+                font_color: catpuccin_mocha.font,
                 size: 25.0,
 
                 ..TextSettings::default()
             },
             icon: TextSettings {
-                color: catpuccin_mocha.font,
+                font_color: catpuccin_mocha.font,
                 size: 25.0,
 
                 ..TextSettings::default()
