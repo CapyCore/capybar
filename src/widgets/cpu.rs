@@ -3,7 +3,10 @@ use std::cell::RefCell;
 use anyhow::Result;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
-use super::{text::{Text, TextSettings}, Widget, WidgetData, WidgetNew};
+use super::{
+    text::{Text, TextSettings},
+    Widget, WidgetData, WidgetNew,
+};
 
 pub struct CPUSettings {
     pub default_data: WidgetData,
@@ -80,8 +83,7 @@ impl Widget for CPU {
             if self.sys.borrow_mut().cpus().is_empty() {
                 self.icon.borrow_mut().change_text("");
                 text.change_text("ERR");
-            }
-            else{
+            } else {
                 text.change_text(format!("{info}%").as_str());
             }
         }
@@ -99,9 +101,13 @@ impl Widget for CPU {
 impl WidgetNew for CPU {
     type Settings = CPUSettings;
 
-    fn new(env: Option<std::rc::Rc<crate::root::Environment>>, settings: Self::Settings) -> anyhow::Result<Self>
-        where
-            Self: Sized {
+    fn new(
+        env: Option<std::rc::Rc<crate::root::Environment>>,
+        settings: Self::Settings,
+    ) -> anyhow::Result<Self>
+    where
+        Self: Sized,
+    {
         Ok(Self {
             data: RefCell::new(settings.default_data),
             icon: RefCell::new(Text::new(

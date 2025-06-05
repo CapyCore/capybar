@@ -15,6 +15,10 @@ use super::container::{Container, WidgetVec};
 pub enum Alignment {
     CenteringHorizontal,
     CenteringVertical,
+    GrowthCenteringHorizontalRight(usize),
+    GrowthCenteringHorizontalLeft(usize),
+    GrowthCenteringVerticalRight(usize),
+    GrowthCenteringVerticalLeft(usize),
     GrowthHorizontalRight(usize),
     GrowthHorizontalLeft(usize),
     GrowthVerticalUp(usize),
@@ -196,7 +200,7 @@ impl Row {
         if children.len() == 1 {
             let child = &mut children[0].data()?;
 
-            child.position.0 = (data.width - border * 2 - child.width) / 2;
+            child.position.0 = data.position.0 + (data.width - border * 2 - child.width) / 2;
             child.position.1 = data.position.1 + border + child.margin.2;
 
             data.height = Row::get_max_height(children) + border;
@@ -232,6 +236,25 @@ impl Row {
         Ok(())
     }
 
+    fn align_children_growth_ch(&self, padding: usize) -> Result<()> {
+        {
+            let mut children = self.children.borrow_mut();
+            let mut data = self.data.borrow_mut();
+
+            data.width = 0;
+
+            for child in children.widgets_mut().iter_mut().map(|a| a.data().unwrap()) {
+                data.width += child.margin.0 + child.width + child.margin.1 + padding;
+            }
+
+            data.width -= padding;
+        }
+
+        self.align_children_centered_horizontal()?;
+
+        Ok(())
+    }
+
     fn align_children_growth_hr(&self, padding: usize) -> Result<()> {
         let mut children = self.children.borrow_mut();
         let mut data = self.data.borrow_mut();
@@ -252,6 +275,30 @@ impl Row {
         }
 
         data.width = offset - padding + border;
+
+        Ok(())
+    }
+
+    fn align_children_growth_hl(&self, padding: usize) -> Result<()> {
+        let mut children = self.children.borrow_mut();
+        let mut data = self.data.borrow_mut();
+
+        let border = match self.settings.border {
+            Some((i, _)) => i,
+            None => 0,
+        };
+
+        children.is_aligned = true;
+        let children = children.widgets_mut();
+
+        let mut offset = data.position.0 - border;
+        for child in children.iter_mut().map(|a| a.data().unwrap()) {
+            child.position.1 = data.position.1 + child.margin.2;
+            child.position.0 = offset - child.width - child.margin.1;
+            offset -= child.margin.0 + child.width + child.margin.1 + padding;
+        }
+
+        data.width = data.position.0 - (offset - padding + border);
 
         Ok(())
     }
@@ -282,8 +329,14 @@ impl Container for Row {
         match alignment {
             Alignment::CenteringHorizontal => self.align_children_centered_horizontal()?,
             Alignment::CenteringVertical => todo!(),
+            Alignment::GrowthCenteringHorizontalRight(padding) => {
+                self.align_children_growth_ch(padding)?
+            }
+            Alignment::GrowthCenteringHorizontalLeft(_) => todo!(),
+            Alignment::GrowthCenteringVerticalRight(_) => todo!(),
+            Alignment::GrowthCenteringVerticalLeft(_) => todo!(),
             Alignment::GrowthHorizontalRight(padding) => self.align_children_growth_hr(padding)?,
-            Alignment::GrowthHorizontalLeft(_) => todo!(),
+            Alignment::GrowthHorizontalLeft(padding) => self.align_children_growth_hl(padding)?,
             Alignment::GrowthVerticalUp(_) => todo!(),
             Alignment::GrowthVerticalDown(_) => todo!(),
         };

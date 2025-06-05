@@ -1,7 +1,17 @@
+use std::sync::Barrier;
+
 use capybar::{
     util::Color,
     widgets::{
-        battery::{Battery, BatterySettings}, clock::{Clock, ClockSettings}, containers::row::{Row, RowSettings}, cpu::{CPUSettings, CPU}, text::{Text, TextSettings}, WidgetData, WidgetNew
+        battery::{Battery, BatterySettings},
+        clock::{Clock, ClockSettings},
+        containers::{
+            bar::{Bar, BarSettings},
+            row::{Row, RowSettings},
+        },
+        cpu::{CPUSettings, CPU},
+        text::{Text, TextSettings},
+        WidgetData, WidgetNew,
     },
     Root,
 };
@@ -24,52 +34,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::connect_to_env()?;
     let (globals, mut event_queue) = registry_queue_init(&conn)?;
 
-    let mut bar = Root::new(&globals, &mut event_queue)?;
+    let mut capybar = Root::new(&globals, &mut event_queue)?;
 
-    bar.add_font_by_name("mono")?;
-    bar.add_font_by_name("jetbrainsmononerdfont")?;
+    capybar.add_font_by_name("mono")?;
+    capybar.add_font_by_name("jetbrainsmononerdfont")?;
 
-    let mut row = Row::new(
+    let mut bar = Bar::new(
         None,
-        RowSettings {
-            background: Some(catpuccin_mocha.background),
-            border: Some((2, catpuccin_mocha.border)),
-            alignment: capybar::widgets::containers::row::Alignment::CenteringHorizontal,
+        BarSettings {
             default_data: WidgetData {
                 width: 1920,
                 ..WidgetData::default()
             },
-            ..RowSettings::default()
+            padding: (10, 10, 10),
+            background: Some(catpuccin_mocha.background),
+
+            ..BarSettings::default()
         },
     )?;
 
-    row.create_child(
-        Text::new,
-        TextSettings {
-            text: "Workspaces placeholder".to_string(),
-            color: catpuccin_mocha.font,
-            size: 25.0,
-
-            default_data: WidgetData {
-                margin: (10, 0, 0, 0),
-                ..WidgetData::default()
-            },
-
-            ..TextSettings::default()
-        },
-    )?;
-
-    row.create_child(
-        Clock::new,
-        ClockSettings {
-            font_color: catpuccin_mocha.font,
-            size: 25.0,
-
-            ..ClockSettings::default()
-        },
-    )?;
-
-    row.create_child(
+    bar.create_child_left(
         CPU::new,
         CPUSettings {
             text: TextSettings {
@@ -85,13 +69,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..TextSettings::default()
             },
             default_data: WidgetData {
-                margin: (0, 10, 0, 0),
+                margin: (10, 0, 0, 0),
                 ..WidgetData::default()
             },
         },
     )?;
 
-    row.create_child(
+    bar.create_child_center(
+        Clock::new,
+        ClockSettings {
+            font_color: catpuccin_mocha.font,
+            size: 25.0,
+
+            ..ClockSettings::default()
+        },
+    )?;
+
+    bar.create_child_right(
         Battery::new,
         BatterySettings {
             text: TextSettings {
@@ -114,9 +108,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
-    bar.add_widget(row)?;
+    capybar.add_widget(bar)?;
 
-    bar.init(&mut event_queue)?.run(&mut event_queue)?;
+    capybar.init(&mut event_queue)?.run(&mut event_queue)?;
 
     Ok(())
 }

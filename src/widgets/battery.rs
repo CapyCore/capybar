@@ -43,7 +43,7 @@ pub struct BatteryInfo {
 impl Add for BatteryInfo {
     type Output = BatteryInfo;
     fn add(self, rhs: Self) -> Self::Output {
-        BatteryInfo{
+        BatteryInfo {
             energy: self.energy + rhs.energy,
             full: self.full + rhs.full,
             state: {
