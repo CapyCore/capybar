@@ -25,12 +25,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         font: Color::from_hex(0xf5e0dcff),
     };
 
-    // this method needs to be inside main() method
     let conn = Connection::connect_to_env()?;
     let (globals, mut event_queue) = registry_queue_init(&conn)?;
 
     let mut capybar = Root::new(&globals, &mut event_queue)?;
 
+    // Fonts can be replaces by your liking. The first font added will be used for normal text, the
+    // second for emoji
     capybar.add_font_by_name("mono")?;
     capybar.add_font_by_name("jetbrainsmononerdfont")?;
 
@@ -54,6 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
+    // Left widgets
     bar.create_child_left(
         CPU::new,
         CPUSettings {
@@ -77,6 +79,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
+
+    //Center widgets
     bar.create_child_center(
         Clock::new,
         ClockSettings {
@@ -87,6 +91,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
+
+    // Right widgets
     bar.create_child_right(
         Battery::new,
         BatterySettings {
@@ -109,6 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..BatterySettings::default()
         },
     )?;
+
 
     capybar.add_widget(bar)?;
 
