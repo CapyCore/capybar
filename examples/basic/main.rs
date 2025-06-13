@@ -32,7 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Fonts can be replaces by your liking. The first font added will be used for normal text, the
     // second for emoji
-    capybar.add_font_by_name("mono")?;
+    //capybar.add_font_by_name("mono")?;
+    capybar.add_font_by_name("jetbrainsmononerdfont")?;
     capybar.add_font_by_name("jetbrainsmononerdfont")?;
 
     let mut bar = Bar::new(
@@ -79,7 +80,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
-
     //Center widgets
     bar.create_child_center(
         Clock::new,
@@ -90,7 +90,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..ClockSettings::default()
         },
     )?;
-
 
     // Right widgets
     bar.create_child_right(
@@ -115,7 +114,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..BatterySettings::default()
         },
     )?;
-
 
     capybar.add_widget(bar)?;
 

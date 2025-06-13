@@ -4,4 +4,4 @@ pub use color::Color;
 pub mod drawer;
 pub use drawer::Drawer;
 
-pub mod font;
+pub mod fonts;

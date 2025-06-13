@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::Result;
-use fontdue::Font;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
@@ -34,17 +33,15 @@ use wayland_client::{
     Connection, EventQueue, QueueHandle,
 };
 
+pub struct Environment {}
+
 use crate::{
     util::{
-        font::{Fonts, FontsError},
+        fonts::{self, FontsError},
         Drawer,
     },
     widgets::{Widget, WidgetNew},
 };
-
-pub struct Environment {
-    pub fonts: Fonts,
-}
 
 pub struct Root {
     flag: bool,
@@ -66,8 +63,6 @@ pub struct Root {
 
     drawer: Option<Drawer>,
     widgets: Vec<Box<dyn Widget>>,
-    fonts: Fonts,
-
     env: Rc<Environment>,
 }
 
@@ -370,12 +365,8 @@ impl Root {
             pointer: None,
 
             widgets: Vec::new(),
-            fonts: Fonts::new().unwrap(),
             drawer: None,
-
-            env: Rc::new(Environment {
-                fonts: Fonts::new().unwrap(),
-            }),
+            env: Rc::new(Environment {}),
         };
 
         Ok(bar)
@@ -440,15 +431,7 @@ impl Root {
     }
 
     pub fn add_font_by_name(&mut self, name: &'static str) -> Result<(), FontsError> {
-        self.fonts.add_font_by_name(name)?;
-        Rc::get_mut(&mut self.env)
-            .unwrap()
-            .fonts
-            .add_font_by_name(name)
-    }
-
-    pub fn fonts(&self) -> Rc<Vec<Font>> {
-        self.fonts.fonts()
+        fonts::add_font_by_name(name)
     }
 
     pub fn add_widget<W>(&mut self, mut widget: W) -> Result<()>

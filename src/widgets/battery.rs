@@ -187,7 +187,7 @@ impl Widget for Battery {
                             )
                             .as_str(),
                         );
-                        text.change_text(format!("{percentage}").as_str());
+                        text.change_text(format!("{percentage}%").as_str());
                     }
                 }
                 None => {
