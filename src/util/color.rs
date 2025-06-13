@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-#[derive(Clone, Copy, Debug, Default)]
+use serde::Deserialize;
+
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
 pub struct Color(u32);
 
 impl Display for Color {

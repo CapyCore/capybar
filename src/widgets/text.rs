@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{
     root::Environment,
-    util::{Color, Drawer},
+    util::{fonts, Color, Drawer},
     widgets::Widget,
 };
 
@@ -50,7 +50,7 @@ impl Text {
         self.layout.clear();
         if let Some(ref mut env) = self.env {
             self.layout.append(
-                &env.fonts.fonts(),
+                &fonts::fonts_vec(),
                 &TextStyle::new(text, self.settings.size, self.settings.fontid),
             );
         }
@@ -79,7 +79,7 @@ impl Widget for Text {
 
         let env = self.env.as_mut().unwrap();
         self.layout.append(
-            &env.fonts.fonts(),
+            &fonts::fonts_vec(),
             &TextStyle::new(
                 &self.settings.text,
                 self.settings.size,
@@ -98,9 +98,7 @@ impl Widget for Text {
     }
 
     fn draw(&self, drawer: &mut Drawer) -> Result<()> {
-        let env = self.env.as_ref().unwrap();
-        let fonts = env.fonts.fonts();
-        let font = &fonts[self.settings.fontid];
+        let font = &fonts::fonts_vec()[self.settings.fontid];
         let data = &self.data.borrow_mut();
 
         if let Some(color) = self.settings.style.background {
