@@ -1,11 +1,19 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
+use serde::Deserialize;
 use thiserror::Error;
 
 use crate::{
     root::Environment,
     util::{Color, Drawer},
+};
+
+use super::{
+    battery::BatterySettings,
+    clock::ClockSettings,
+    cpu::CPUSettings,
+    text::TextSettings,
 };
 
 pub trait Widget {
@@ -29,18 +37,42 @@ pub enum WidgetError {
     InvalidBounds,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, Deserialize)]
 pub struct WidgetData {
+    #[serde(default)]
     pub position: (usize, usize),
+    #[serde(default)]
     pub width: usize,
+    #[serde(default)]
     pub height: usize,
+    #[serde(default)]
     pub margin: (usize, usize, usize, usize),
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+impl WidgetData {
+    pub const fn default() -> Self {
+        Self {
+            position: (0, 0),
+            width: 0,
+            height: 0,
+            margin: (0, 0, 0, 0),
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, Deserialize)]
 pub struct Style {
     pub background: Option<Color>,
     pub border: Option<(usize, Color)>,
+}
+
+impl Style {
+    pub const fn default() -> Self {
+        Self {
+            background: None,
+            border: None,
+        }
+    }
 }
 
 pub trait WidgetStyled: Widget {
@@ -61,4 +93,14 @@ pub trait WidgetStyled: Widget {
 
         Ok(())
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "widget", content = "settings", rename_all = "snake_case")]
+pub enum WidgetsList {
+    Text(TextSettings),
+    Clock(ClockSettings),
+    Battery(BatterySettings),
+    #[serde(rename = "cpu")]
+    CPU(CPUSettings),
 }

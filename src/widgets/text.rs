@@ -3,6 +3,8 @@ use std::{cell::RefCell, rc::Rc};
 use anyhow::Result;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 
+use serde::Deserialize;
+
 use thiserror::Error;
 
 use crate::{
@@ -13,14 +15,20 @@ use crate::{
 
 use super::{Style, WidgetData, WidgetNew};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct TextSettings {
+    #[serde(default, flatten)]
     pub default_data: WidgetData,
+    #[serde(default)]
     pub text: String,
+    #[serde(default)]
     pub font_color: Color,
+    #[serde(default)]
     pub size: f32,
+    #[serde(default)]
     pub fontid: usize,
 
+    #[serde(default)]
     pub style: Style,
 }
 
@@ -48,7 +56,7 @@ impl Text {
 
     pub fn change_text(&mut self, text: &str) {
         self.layout.clear();
-        if let Some(ref mut env) = self.env {
+        if let Some(ref mut _env) = self.env {
             self.layout.append(
                 &fonts::fonts_vec(),
                 &TextStyle::new(text, self.settings.size, self.settings.fontid),
@@ -77,7 +85,7 @@ impl Widget for Text {
     fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
         self.env = Some(env);
 
-        let env = self.env.as_mut().unwrap();
+        let _env = self.env.as_mut().unwrap();
         self.layout.append(
             &fonts::fonts_vec(),
             &TextStyle::new(

@@ -1,0 +1,37 @@
+#TOML does not support variables interpolation, so this is just a place to copy values from 
+[palete]
+font = 0xf5e0dcff
+background = 0x1e1e2eff
+border = 0x74c7ecff
+
+[preloaded_fonts]
+list = ["mono", "jetbrainsmononerdfont"]
+
+[bar.settings]
+width = 1920
+background = 0x1e1e2eff
+border = [1, 0x74c7ecff]
+
+[[bar.left]]
+    widget = "cpu"
+    [bar.left.settings]
+    size = 24
+    font_color = 0xf5e0dcff
+    margin = [10,0,0,0]
+
+[[bar.center]]
+    widget = "clock"
+    [bar.center.settings] 
+    size = 24
+    font_color = 0xf5e0dcff
+
+[[bar.right]]
+    widget = "battery"
+    [bar.right.settings] 
+    size = 24
+    font_color = 0xf5e0dcff
+    margin = [0,10,0,0]
+
+
+
+

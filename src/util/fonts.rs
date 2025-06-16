@@ -50,12 +50,12 @@ pub fn fonts_vec() -> MutexGuard<'static, Vec<fontdue::Font>> {
 pub fn add_font_by_name(name: &str) -> Result<(), FontsError> {
     let font = match FONTS.fontconfig.find(name, None) {
         Some(f) => f,
-        None => return Err(FontsError::FontNotFound(name.to_string()).into()),
+        None => return Err(FontsError::FontNotFound(name.to_string())),
     };
 
     let bytes = match std::fs::read(font.path.as_path()) {
         Ok(b) => b,
-        Err(e) => return Err(FontsError::IO(e).into()),
+        Err(e) => return Err(FontsError::IO(e)),
     };
 
     let font = fontdue::Font::from_bytes(

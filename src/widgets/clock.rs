@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use chrono::Local;
+use serde::Deserialize;
 
 use crate::{
     root::Environment,
@@ -11,12 +12,21 @@ use crate::{
 
 use super::{text::TextSettings, WidgetData, WidgetNew};
 
+fn default_format() -> String {
+    "%H:%M".to_string()
+}
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct ClockSettings {
+    #[serde(default)]
     pub size: f32,
+    #[serde(default = "default_format")]
     pub format: String,
 
+    #[serde(default)]
     pub font_color: Color,
 
+    #[serde(default)]
     pub default_data: WidgetData,
 }
 
@@ -24,7 +34,7 @@ impl Default for ClockSettings {
     fn default() -> Self {
         Self {
             size: 25.0,
-            format: "%H:%M:%S".to_string(),
+            format: default_format(),
 
             font_color: Color::BLACK,
 

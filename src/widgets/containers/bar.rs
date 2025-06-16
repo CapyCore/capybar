@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
+use serde::Deserialize;
 
 use crate::{
     root::Environment,
@@ -12,17 +13,20 @@ use super::{
     row::{Alignment, Row, RowSettings},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone, Deserialize)]
 pub struct BarSettings {
+    #[serde(flatten, default)]
     pub default_data: WidgetData,
 
+    #[serde(default)]
     pub padding: (usize, usize, usize),
 
+    #[serde(flatten)]
     pub style: Style,
 }
 
-impl Default for BarSettings {
-    fn default() -> Self {
+impl BarSettings {
+    pub const fn default() -> Self {
         Self {
             default_data: WidgetData::default(),
             padding: (10, 10, 10),

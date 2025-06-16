@@ -1,6 +1,5 @@
 use std::{
     cmp::{max, min},
-    error::Error,
     num::NonZeroU32,
     rc::Rc,
 };
@@ -33,14 +32,20 @@ use wayland_client::{
     Connection, EventQueue, QueueHandle,
 };
 
-pub struct Environment {}
+pub struct Environment {
+    pub config: Config,
+}
 
 use crate::{
+    config::Config,
     util::{
         fonts::{self, FontsError},
         Drawer,
     },
-    widgets::{Widget, WidgetNew},
+    widgets::{
+        battery::Battery, clock::Clock, containers::bar::Bar, cpu::CPU, text::Text, Widget,
+        WidgetNew, WidgetsList,
+    },
 };
 
 pub struct Root {
@@ -331,10 +336,7 @@ impl ProvidesRegistryState for Root {
 }
 
 impl Root {
-    pub fn new(
-        globals: &GlobalList,
-        event_queue: &mut EventQueue<Root>,
-    ) -> Result<Root, Box<dyn std::error::Error>> {
+    pub fn new(globals: &GlobalList, event_queue: &mut EventQueue<Root>) -> Result<Root> {
         let qh = event_queue.handle();
 
         let compositor =
@@ -366,16 +368,57 @@ impl Root {
 
             widgets: Vec::new(),
             drawer: None,
-            env: Rc::new(Environment {}),
+            env: Rc::new(Environment {
+                config: Config::default(),
+            }),
         };
 
         Ok(bar)
     }
 
-    pub fn init(
-        &mut self,
+    pub fn new_from_config(
+        globals: &GlobalList,
         event_queue: &mut EventQueue<Root>,
-    ) -> Result<&mut Self, Box<dyn Error>> {
+        config: Config,
+    ) -> Result<Root> {
+        let mut root = Root::new(globals, event_queue)?;
+
+        let mut bar = Bar::new(None, config.bar.settings)?;
+
+        for widget in config.bar.left {
+            match widget {
+                WidgetsList::Text(settings) => bar.create_child_left(Text::new, settings)?,
+                WidgetsList::Clock(settings) => bar.create_child_left(Clock::new, settings)?,
+                WidgetsList::Battery(settings) => bar.create_child_left(Battery::new, settings)?,
+                WidgetsList::CPU(settings) => bar.create_child_left(CPU::new, settings)?,
+            }
+        }
+
+        for widget in config.bar.center {
+            match widget {
+                WidgetsList::Text(settings) => bar.create_child_center(Text::new, settings)?,
+                WidgetsList::Clock(settings) => bar.create_child_center(Clock::new, settings)?,
+                WidgetsList::Battery(settings) => {
+                    bar.create_child_center(Battery::new, settings)?
+                }
+                WidgetsList::CPU(settings) => bar.create_child_center(CPU::new, settings)?,
+            }
+        }
+
+        for widget in config.bar.right {
+            match widget {
+                WidgetsList::Text(settings) => bar.create_child_right(Text::new, settings)?,
+                WidgetsList::Clock(settings) => bar.create_child_right(Clock::new, settings)?,
+                WidgetsList::Battery(settings) => bar.create_child_right(Battery::new, settings)?,
+                WidgetsList::CPU(settings) => bar.create_child_right(CPU::new, settings)?,
+            }
+        }
+
+        root.add_widget(bar)?;
+        Ok(root)
+    }
+
+    pub fn init(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
         self.layer.set_anchor(Anchor::TOP);
         self.layer
             .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
@@ -397,7 +440,8 @@ impl Root {
             let info = self
                 .output_state
                 .info(&output)
-                .ok_or_else(|| "output has no info".to_owned())?;
+                .ok_or_else(|| "output has no info".to_owned())
+                .unwrap();
 
             if let Some((width, height)) = info.logical_size {
                 self.width = max(self.width, width as u32);
@@ -416,7 +460,7 @@ impl Root {
         Ok(self)
     }
 
-    pub fn run(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self, Box<dyn Error>> {
+    pub fn run(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
         let _ = event_queue.blocking_dispatch(self);
 
         loop {
