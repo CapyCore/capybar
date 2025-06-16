@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use anyhow::Result;
+use serde::Deserialize;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use super::{
@@ -8,13 +9,15 @@ use super::{
     Style, Widget, WidgetData, WidgetNew,
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct CPUSettings {
+    #[serde(default, flatten)]
     pub default_data: WidgetData,
 
-    pub text: TextSettings,
-    pub icon: TextSettings,
+    #[serde(default, flatten)]
+    pub text_style: TextSettings,
 
+    #[serde(default, flatten)]
     pub style: Style,
 }
 
@@ -116,8 +119,12 @@ impl WidgetNew for CPU {
                 env.clone(),
                 TextSettings {
                     text: "".to_string(),
+                    default_data: WidgetData {
+                        margin: (0, 0, 0, 0),
+                        ..WidgetData::default()
+                    },
                     fontid: 1,
-                    ..settings.text.clone()
+                    ..settings.text_style.clone()
                 },
             )?),
             percent: RefCell::new(Text::new(
@@ -129,7 +136,7 @@ impl WidgetNew for CPU {
                         margin: (5, 0, 2, 0),
                         ..WidgetData::default()
                     },
-                    ..settings.text.clone()
+                    ..settings.text_style.clone()
                 },
             )?),
 
