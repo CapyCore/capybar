@@ -7,9 +7,13 @@ use anyhow::Result;
 use fontconfig::Fontconfig;
 use thiserror::Error;
 
+/// Wrapper for fontconfig and fontdue. Only one exists per capybar instance and shared safly
+/// between difrent [crate::root::Root] instance
 pub struct FontsMap {
     fontconfig: Fontconfig,
+
     fonts_map: Mutex<HashMap<String, usize>>,
+
     fonts_vec: Mutex<Vec<fontdue::Font>>,
 }
 
@@ -39,14 +43,18 @@ pub fn get() -> &'static LazyLock<FontsMap> {
     &FONTS
 }
 
+/// Fonts map contains map of font name to index in vector
 pub fn fonts_map() -> MutexGuard<'static, HashMap<String, usize>> {
     FONTS.fonts_map.lock().unwrap()
 }
 
+/// Fonts vector contains all loaded fonts
 pub fn fonts_vec() -> MutexGuard<'static, Vec<fontdue::Font>> {
     FONTS.fonts_vec.lock().unwrap()
 }
 
+/// Adds font to current FontsMap instance. Font name is case insensitive. Font gets added to fonts
+/// vector and map
 pub fn add_font_by_name(name: &str) -> Result<(), FontsError> {
     let font = match FONTS.fontconfig.find(name, None) {
         Some(f) => f,

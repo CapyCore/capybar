@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use serde::Deserialize;
 
+/// Color structure used in capy. Color is stored as an rgba value.
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 pub struct Color(u32);
 

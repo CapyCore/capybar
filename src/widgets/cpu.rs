@@ -9,18 +9,21 @@ use super::{
     Style, Widget, WidgetData, WidgetNew,
 };
 
+/// Settings of a [CPU] widget
 #[derive(Deserialize, Debug, Default, Clone)]
 pub struct CPUSettings {
     #[serde(default, flatten)]
     pub default_data: WidgetData,
 
+    /// Settings for underlying [Text] widget
     #[serde(default, flatten)]
-    pub text_style: TextSettings,
+    pub text_settings: TextSettings,
 
     #[serde(default, flatten)]
     pub style: Style,
 }
 
+/// Widget displaying current CPU status.
 pub struct CPU {
     data: RefCell<WidgetData>,
 
@@ -124,7 +127,7 @@ impl WidgetNew for CPU {
                         ..WidgetData::default()
                     },
                     fontid: 1,
-                    ..settings.text_style.clone()
+                    ..settings.text_settings.clone()
                 },
             )?),
             percent: RefCell::new(Text::new(
@@ -136,7 +139,7 @@ impl WidgetNew for CPU {
                         margin: (5, 0, 2, 0),
                         ..WidgetData::default()
                     },
-                    ..settings.text_style.clone()
+                    ..settings.text_settings.clone()
                 },
             )?),
 

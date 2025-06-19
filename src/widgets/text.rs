@@ -15,16 +15,23 @@ use crate::{
 
 use super::{Style, WidgetData, WidgetNew};
 
+/// Settings of a [Text] widget
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct TextSettings {
     #[serde(default, flatten)]
     pub default_data: WidgetData,
+
+    /// Default text displayed by the widget
     #[serde(default)]
     pub text: String,
     #[serde(default)]
     pub font_color: Color,
+
+    /// Default font size
     #[serde(default)]
     pub size: f32,
+
+    /// Id of font in vector of fonts for current [crate::util::fonts::FontsMap]
     #[serde(default)]
     pub fontid: usize,
 
@@ -35,6 +42,7 @@ pub struct TextSettings {
 #[derive(Debug, Error)]
 pub enum TextError {}
 
+/// Basic widget used for drawing text to a screen
 pub struct Text {
     layout: Layout,
 
@@ -44,6 +52,7 @@ pub struct Text {
 }
 
 impl Text {
+    /// Text is not cached as a string and gets consturcted every time. Often usage of the function might be pricy.
     pub fn get_text(&self) -> String {
         let mut text = String::new();
 

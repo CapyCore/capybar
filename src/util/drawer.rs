@@ -26,6 +26,7 @@ impl fmt::Display for DrawerError {
     }
 }
 
+/// Utility structure used to simplify drawing the widgets.
 #[derive(Debug)]
 pub struct Drawer {
     pool: SlotPool,
@@ -50,6 +51,7 @@ impl Drawer {
         }
     }
 
+    /// Commit buffer to a surface
     pub fn commit(&self, surface: &WlSurface) {
         if let Some(buffer) = &self.buffer {
             buffer.attach_to(surface).expect("buffer attach");
@@ -57,6 +59,8 @@ impl Drawer {
         }
     }
 
+    /// Put a single colored pixel in a relative space. Drawer converts local position in a widget
+    /// to global buffer position using provided `WidgetData`.
     pub fn draw_pixel(&mut self, data: &WidgetData, pos: (usize, usize), color: Color) {
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
@@ -97,6 +101,8 @@ impl Drawer {
         }
     }
 
+    /// Draw a glyph form dont. Drawer converts local position in a widget to global buf position
+    /// using provided `WidgetData`.
     pub fn draw_glyph(
         &mut self,
         data: &WidgetData,

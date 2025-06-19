@@ -6,8 +6,7 @@ use serde::Deserialize;
 
 use super::{
     text::{Text, TextSettings},
-    widget::{Widget, WidgetNew},
-    Style, WidgetData, WidgetStyled,
+    Style, Widget, WidgetData, WidgetNew, WidgetStyled,
 };
 
 const fn battery_not_charging_default() -> [char; 11] {
@@ -18,15 +17,22 @@ const fn battery_charging_default() -> [char; 11] {
     ['󰢟', '󰢜', '󰂆', '󰂇', '󰂈', '󰢝', '󰂉', '󰢞', '󰂊', '󰂋', '󰂅']
 }
 
+/// Settings of a [Battery] widget
 #[derive(Debug, Deserialize, Clone)]
 pub struct BatterySettings {
+    /// Array of all symbols for percentages of battery when it is not charging. Symbols are changed
+    /// every 10% including 0%, therefor needs 11 symbols.  
     #[serde(default = "battery_not_charging_default")]
     pub battery_not_charging: [char; 11],
+
+    /// Array of all symbols for percentages of battery when it is charging. Symbols are changed
+    /// every 10% including 0%, therefor needs 11 symbols.  
     #[serde(default = "battery_charging_default")]
     pub battery_charging: [char; 11],
 
+    /// Settings for underlying [Text] widget
     #[serde(default, flatten)]
-    pub text_style: TextSettings,
+    pub text_settings: TextSettings,
 
     #[serde(default, flatten)]
     pub default_data: WidgetData,
@@ -41,7 +47,7 @@ impl Default for BatterySettings {
             battery_not_charging: battery_not_charging_default(),
             battery_charging: battery_charging_default(),
 
-            text_style: TextSettings::default(),
+            text_settings: TextSettings::default(),
 
             default_data: WidgetData::default(),
 
@@ -88,6 +94,7 @@ impl BatteryInfo {
     }
 }
 
+/// Widget displaying current battery status.
 pub struct Battery {
     manager: Manager,
 
@@ -100,6 +107,7 @@ pub struct Battery {
 }
 
 impl Battery {
+    /// Get information of current battery status
     pub fn get_info(&self) -> Option<BatteryInfo> {
         Some(
             self.manager
@@ -241,7 +249,7 @@ impl WidgetNew for Battery {
                         ..WidgetData::default()
                     },
                     fontid: 1,
-                    ..settings.text_style.clone()
+                    ..settings.text_settings.clone()
                 },
             )?),
             percent: RefCell::new(Text::new(
@@ -253,7 +261,7 @@ impl WidgetNew for Battery {
                         margin: (5, 0, 2, 0),
                         ..WidgetData::default()
                     },
-                    ..settings.text_style.clone()
+                    ..settings.text_settings.clone()
                 },
             )?),
 
