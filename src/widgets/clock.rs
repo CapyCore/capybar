@@ -16,10 +16,14 @@ fn default_format() -> String {
     "%H:%M".to_string()
 }
 
+/// Settings of a [Clock] widget
 #[derive(Deserialize, Debug, Clone)]
 pub struct ClockSettings {
+    /// Default font size
     #[serde(default)]
     pub size: f32,
+
+    /// Default format strftime format
     #[serde(default = "default_format")]
     pub format: String,
 
@@ -43,6 +47,7 @@ impl Default for ClockSettings {
     }
 }
 
+/// Widget displaying current time. Supports C's strftime formating.
 pub struct Clock {
     text: RefCell<Text>,
     settings: ClockSettings,
@@ -51,6 +56,7 @@ pub struct Clock {
 }
 
 impl Clock {
+    /// Force update current time  
     pub fn update(&self) -> &Self {
         let mut text = self.text.borrow_mut();
         text.change_text(&Local::now().format(&self.settings.format).to_string());

@@ -9,7 +9,7 @@ use crate::{
     widgets::{Widget, WidgetData, WidgetNew},
 };
 
-use super::container::{Container, WidgetVec};
+use super::{Container, WidgetVec};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Alignment {
@@ -31,6 +31,7 @@ impl Default for Alignment {
     }
 }
 
+/// Settings of a [Row] container
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RowSettings {
     pub background: Option<Color>,
@@ -42,13 +43,14 @@ pub struct RowSettings {
 
 #[derive(Error, Debug)]
 pub enum RowError {
-    #[error("Row is not wide enough to display all of it's child")]
+    #[error("Row is not wide enough to display all of it's children")]
     WidthOverflow,
 
     #[error("anyhow error: {0}")]
     Other(#[from] anyhow::Error),
 }
 
+/// Container that stores widgets in a row.
 pub struct Row {
     settings: RowSettings,
     data: RefCell<WidgetData>,

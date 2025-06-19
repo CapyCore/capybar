@@ -9,15 +9,18 @@ use crate::{
 };
 
 use super::{
-    container::Container,
     row::{Alignment, Row, RowSettings},
+    Container,
 };
 
+/// Settings of a [Bar] containert
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct BarSettings {
     #[serde(flatten, default)]
     pub default_data: WidgetData,
 
+    /// Distance between widgets in underlying rows. Stored as a tuple of (Distance in left,
+    /// distance in center, distance in right)
     #[serde(default)]
     pub padding: (usize, usize, usize),
 
@@ -35,6 +38,7 @@ impl BarSettings {
     }
 }
 
+/// Main widget in capybar. Stores 3 alligned [Row] containers.
 pub struct Bar {
     settings: BarSettings,
     data: RefCell<WidgetData>,
@@ -242,11 +246,11 @@ impl Container for Bar {
         todo!();
     }
 
-    fn children(&self) -> &super::container::WidgetVec {
+    fn children(&self) -> &super::WidgetVec {
         todo!();
     }
 
-    fn children_mut(&mut self) -> &super::container::WidgetVec {
+    fn children_mut(&mut self) -> &super::WidgetVec {
         todo!();
     }
 }
