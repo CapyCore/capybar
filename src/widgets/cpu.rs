@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use anyhow::Result;
+use chrono::{DateTime, Local, TimeDelta};
 use serde::Deserialize;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
@@ -21,6 +22,10 @@ pub struct CPUSettings {
 
     #[serde(default, flatten)]
     pub style: Style,
+
+    /// How often to update CPU status in milliseconds
+    #[serde(default)]
+    pub update_rate: u32,
 }
 
 /// Widget displaying current CPU status.
@@ -31,6 +36,9 @@ pub struct CPU {
     percent: RefCell<Text>,
 
     sys: RefCell<System>,
+
+    last_update: RefCell<DateTime<Local>>,
+    upadte_rate: TimeDelta,
 }
 
 impl CPU {
@@ -83,22 +91,28 @@ impl Widget for CPU {
         self.align()
     }
 
-    fn draw(&self, drawer: &mut crate::util::Drawer) -> Result<()> {
-        let info = self.get_info();
+    fn draw(&self) -> Result<()> {
+        let mut last_update = self.last_update.borrow_mut();
 
-        {
-            let mut text = self.percent.borrow_mut();
-            if self.sys.borrow_mut().cpus().is_empty() {
-                self.icon.borrow_mut().change_text("");
-                text.change_text("ERR");
-            } else {
-                text.change_text(format!("{info}%").as_str());
+        if Local::now() - *last_update >= self.upadte_rate {
+            let info = self.get_info();
+
+            {
+                let mut text = self.percent.borrow_mut();
+                if self.sys.borrow_mut().cpus().is_empty() {
+                    self.icon.borrow_mut().change_text("");
+                    text.change_text("ERR");
+                } else {
+                    text.change_text(format!("{info}%").as_str());
+                }
             }
+
+            self.align()?;
+            *last_update = Local::now();
         }
 
-        self.align()?;
-        self.percent.borrow_mut().draw(drawer)?;
-        self.icon.borrow_mut().draw(drawer)
+        self.percent.borrow_mut().draw()?;
+        self.icon.borrow_mut().draw()
     }
 
     fn data(&self) -> &RefCell<WidgetData> {
@@ -146,6 +160,11 @@ impl WidgetNew for CPU {
             sys: RefCell::new(System::new_with_specifics(
                 RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
             )),
+
+            upadte_rate: TimeDelta::milliseconds(settings.update_rate as i64),
+            last_update: RefCell::new(
+                chrono::Local::now() - TimeDelta::milliseconds(settings.update_rate as i64),
+            ),
         })
     }
 }

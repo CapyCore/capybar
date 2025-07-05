@@ -9,11 +9,11 @@ use thiserror::Error;
 
 use crate::{
     root::Environment,
-    util::{fonts, Color, Drawer},
+    util::{fonts, Color},
     widgets::Widget,
 };
 
-use super::{Style, WidgetData, WidgetNew};
+use super::{Style, WidgetData, WidgetError, WidgetNew};
 
 /// Settings of a [Text] widget
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -114,9 +114,14 @@ impl Widget for Text {
         Ok(())
     }
 
-    fn draw(&self, drawer: &mut Drawer) -> Result<()> {
+    fn draw(&self) -> Result<()> {
+        if self.env.is_none() {
+            return Err(WidgetError::DrawWithNoEnv("Text".to_string()).into());
+        }
+
         let font = &fonts::fonts_vec()[self.settings.fontid];
         let data = &self.data.borrow_mut();
+        let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
 
         if let Some(color) = self.settings.style.background {
             for x in 0..data.width {

@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     cmp::{max, min},
     num::NonZeroU32,
     rc::Rc,
@@ -24,16 +25,19 @@ use smithay_client_toolkit::{
         },
         WaylandSurface,
     },
-    shm::{slot::SlotPool, Shm, ShmHandler},
+    shm::{Shm, ShmHandler},
 };
+use thiserror::Error;
 use wayland_client::{
     globals::GlobalList,
     protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
     Connection, EventQueue, QueueHandle,
 };
 
+/// Structure containing things all the widgets in capybar needs access to
 pub struct Environment {
     pub config: Config,
+    pub drawer: RefCell<Drawer>,
 }
 
 use crate::{
@@ -47,6 +51,12 @@ use crate::{
         WidgetNew, WidgetsList,
     },
 };
+
+#[derive(Error, Debug)]
+pub enum RootError {
+    #[error("Environment is not initialised before drawing")]
+    EnvironmentNotInit,
+}
 
 pub struct Root {
     flag: bool,
@@ -66,9 +76,8 @@ pub struct Root {
     keyboard_focus: bool,
     pointer: Option<wl_pointer::WlPointer>,
 
-    drawer: Option<Drawer>,
     widgets: Vec<Box<dyn Widget>>,
-    env: Rc<Environment>,
+    env: Option<Rc<Environment>>,
 }
 
 impl CompositorHandler for Root {
@@ -367,22 +376,13 @@ impl Root {
             pointer: None,
 
             widgets: Vec::new(),
-            drawer: None,
-            env: Rc::new(Environment {
-                config: Config::default(),
-            }),
+            env: None,
         };
 
         Ok(bar)
     }
 
-    pub fn new_from_config(
-        globals: &GlobalList,
-        event_queue: &mut EventQueue<Root>,
-        config: Config,
-    ) -> Result<Root> {
-        let mut root = Root::new(globals, event_queue)?;
-
+    pub fn apply_config(&mut self, config: Config) -> Result<()> {
         let mut bar = Bar::new(None, config.bar.settings)?;
 
         for widget in config.bar.left {
@@ -414,16 +414,25 @@ impl Root {
             }
         }
 
-        root.add_widget(bar)?;
-        Ok(root)
+        self.add_widget(bar)?;
+        Ok(())
     }
 
     pub fn init(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
         self.layer.set_anchor(Anchor::TOP);
         self.layer
             .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-        self.width = 32;
+        self.width = 0;
         self.height = 0;
+
+        self.env = Some(Rc::new(Environment {
+            config: Config::default(),
+            drawer: RefCell::new(Drawer::new(&mut self.shm, 1, 1)),
+        }));
+
+        for widget in &mut self.widgets {
+            widget.bind(Rc::clone(self.env.as_ref().unwrap()))?;
+        }
 
         for widget in &mut self.widgets {
             widget.init()?;
@@ -453,9 +462,11 @@ impl Root {
         self.layer.set_exclusive_zone(self.height as i32);
         self.layer.commit();
 
-        let pool = SlotPool::new((self.width * self.height * 4) as usize, &self.shm).unwrap();
-
-        self.drawer = Some(Drawer::new(pool, self.width as i32, self.height as i32));
+        self.env.as_ref().unwrap().drawer.borrow_mut().update_sizes(
+            &mut self.shm,
+            self.width as i32,
+            self.height as i32,
+        );
 
         Ok(self)
     }
@@ -482,7 +493,9 @@ impl Root {
     where
         W: Widget + 'static,
     {
-        widget.bind(Rc::clone(&self.env))?;
+        if let Some(env) = &self.env {
+            widget.bind(Rc::clone(env))?;
+        }
         self.widgets.push(Box::new(widget));
         Ok(())
     }
@@ -492,20 +505,21 @@ impl Root {
         W: WidgetNew + Widget + 'static,
         F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
     {
-        self.widgets
-            .push(Box::new(f(Some(Rc::clone(&self.env)), settings)?));
+        self.widgets.push(Box::new(f(self.env.clone(), settings)?));
         Ok(())
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<()> {
+        if self.env.is_none() {
+            return Err(RootError::EnvironmentNotInit.into());
+        }
+
         self.layer
             .wl_surface()
             .damage_buffer(0, 0, self.width as i32, self.height as i32);
 
-        if let Some(drawer) = &mut self.drawer {
-            for widget in self.widgets.iter_mut() {
-                widget.draw(drawer)?;
-            }
+        for widget in self.widgets.iter() {
+            widget.draw()?;
         }
 
         // Request our next frame
@@ -513,9 +527,12 @@ impl Root {
             .wl_surface()
             .frame(qh, self.layer.wl_surface().clone());
 
-        if let Some(drawer) = &self.drawer {
-            drawer.commit(self.layer.wl_surface());
-        }
+        self.env
+            .as_ref()
+            .unwrap()
+            .drawer
+            .borrow_mut()
+            .commit(self.layer.wl_surface());
 
         self.flag = false;
         Ok(())

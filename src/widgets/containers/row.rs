@@ -5,8 +5,8 @@ use thiserror::Error;
 
 use crate::{
     root::Environment,
-    util::{Color, Drawer},
-    widgets::{Widget, WidgetData, WidgetNew},
+    util::Color,
+    widgets::{Widget, WidgetData, WidgetError, WidgetNew},
 };
 
 use super::{Container, WidgetVec};
@@ -92,7 +92,11 @@ impl Widget for Row {
         Ok(())
     }
 
-    fn draw(&self, drawer: &mut Drawer) -> Result<()> {
+    fn draw(&self) -> Result<()> {
+        if self.env.is_none() {
+            return Err(WidgetError::DrawWithNoEnv("Row".to_string()).into());
+        }
+
         self.align_children()?;
 
         let children = self.children.borrow_mut();
@@ -107,32 +111,35 @@ impl Widget for Row {
             None => (0, None),
         };
 
-        if let Some(color) = self.settings.background {
-            for x in border.0..data.width - border.0 {
-                for y in border.0..data.height - border.0 {
-                    drawer.draw_pixel(&data, (x, y), color);
-                }
-            }
-        }
-
-        if let Some(color) = border.1 {
-            for x in 0..border.0 {
-                for y in 0..data.height {
-                    drawer.draw_pixel(&data, (x, y), color);
-                    drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
+        {
+            let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
+            if let Some(color) = self.settings.background {
+                for x in border.0..data.width - border.0 {
+                    for y in border.0..data.height - border.0 {
+                        drawer.draw_pixel(&data, (x, y), color);
+                    }
                 }
             }
 
-            for x in 0..data.width {
-                for y in 0..border.0 {
-                    drawer.draw_pixel(&data, (x, y), color);
-                    drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
+            if let Some(color) = border.1 {
+                for x in 0..border.0 {
+                    for y in 0..data.height {
+                        drawer.draw_pixel(&data, (x, y), color);
+                        drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
+                    }
+                }
+
+                for x in 0..data.width {
+                    for y in 0..border.0 {
+                        drawer.draw_pixel(&data, (x, y), color);
+                        drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
+                    }
                 }
             }
         }
 
         for widget in children.widgets() {
-            widget.draw(drawer)?;
+            widget.draw()?;
         }
 
         Ok(())

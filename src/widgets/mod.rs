@@ -11,10 +11,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{
-    root::Environment,
-    util::{Color, Drawer},
-};
+use crate::{root::Environment, util::Color};
 
 use {battery::BatterySettings, clock::ClockSettings, cpu::CPUSettings, text::TextSettings};
 
@@ -24,7 +21,7 @@ pub trait Widget {
     fn bind(&mut self, env: Rc<Environment>) -> Result<()>;
 
     /// Draw an entire widget to a `Drawer`
-    fn draw(&self, drawer: &mut Drawer) -> Result<()>;
+    fn draw(&self) -> Result<()>;
 
     /// Prepare `Widget` for a first draw
     fn init(&self) -> Result<()>;
@@ -49,6 +46,9 @@ pub trait WidgetNew: Widget {
 pub enum WidgetError {
     #[error("Invalid widget bounds")]
     InvalidBounds,
+
+    #[error("Trying to draw a widget \"{0}\" not bound to any environment")]
+    DrawWithNoEnv(String),
 }
 
 /// Global common data used by `Widget` data structure.

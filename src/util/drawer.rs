@@ -2,7 +2,10 @@ use core::fmt;
 use std::error::Error;
 
 use fontdue::{layout::GlyphPosition, Font};
-use smithay_client_toolkit::shm::slot::{Buffer, SlotPool};
+use smithay_client_toolkit::shm::{
+    slot::{Buffer, SlotPool},
+    Shm,
+};
 use wayland_client::protocol::{wl_shm, wl_surface::WlSurface};
 
 use crate::widgets::WidgetData;
@@ -37,18 +40,21 @@ pub struct Drawer {
 }
 
 impl Drawer {
-    pub fn new(mut pool: SlotPool, width: i32, height: i32) -> Self {
-        let buffer = pool
-            .create_buffer(width, height, width * 4, wl_shm::Format::Argb8888)
-            .unwrap()
-            .0;
+    pub fn new(shm: &mut Shm, width: i32, height: i32) -> Self {
         Drawer {
-            pool,
-            buffer: Some(buffer),
+            pool: SlotPool::new((width * height * 4) as usize, shm).unwrap(),
+            buffer: None,
 
             width,
             height,
         }
+    }
+
+    pub fn update_sizes(&mut self, shm: &mut Shm, width: i32, height: i32) {
+        self.height = height;
+        self.width = width;
+        self.buffer = None;
+        self.pool = SlotPool::new((width * height * 4) as usize, shm).unwrap();
     }
 
     /// Commit buffer to a surface
@@ -101,7 +107,7 @@ impl Drawer {
         }
     }
 
-    /// Draw a glyph form dont. Drawer converts local position in a widget to global buf position
+    /// Draw a glyph from font. Drawer converts local position in a widget to global buf position
     /// using provided `WidgetData`.
     pub fn draw_glyph(
         &mut self,
