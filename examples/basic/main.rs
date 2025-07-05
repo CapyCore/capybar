@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     bar.create_child_left(
         CPU::new,
         CPUSettings {
-            text_style: TextSettings {
+            text_settings: TextSettings {
                 font_color: catpuccin_mocha.font,
                 size: 25.0,
 
@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     bar.create_child_right(
         Battery::new,
         BatterySettings {
-            text_style: TextSettings {
+            text_settings: TextSettings {
                 font_color: catpuccin_mocha.font,
                 size: 25.0,
 

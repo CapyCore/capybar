@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::{
     root::Environment,
-    widgets::{Style, Widget, WidgetData, WidgetNew},
+    widgets::{Style, Widget, WidgetData, WidgetError, WidgetNew},
 };
 
 use super::{
@@ -94,10 +94,16 @@ impl Widget for Bar {
     fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
         self.left.borrow_mut().bind(Rc::clone(&env))?;
         self.center.borrow_mut().bind(Rc::clone(&env))?;
-        self.right.borrow_mut().bind(Rc::clone(&env))
+        self.right.borrow_mut().bind(Rc::clone(&env))?;
+        self.env = Some(env);
+        Ok(())
     }
 
-    fn draw(&self, drawer: &mut crate::util::Drawer) -> anyhow::Result<()> {
+    fn draw(&self) -> anyhow::Result<()> {
+        if self.env.is_none() {
+            return Err(WidgetError::DrawWithNoEnv("Bar".to_string()).into());
+        }
+
         let data = self.data.borrow_mut();
 
         let border = match self.settings.style.border {
@@ -105,63 +111,59 @@ impl Widget for Bar {
             None => (0, None),
         };
 
-        if let Some(color) = self.settings.style.background {
-            for x in border.0..data.width - border.0 {
-                for y in border.0..data.height - border.0 {
-                    drawer.draw_pixel(&data, (x, y), color);
+        {
+            let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
+            if let Some(color) = self.settings.style.background {
+                for x in border.0..data.width - border.0 {
+                    for y in border.0..data.height - border.0 {
+                        drawer.draw_pixel(&data, (x, y), color);
+                    }
+                }
+            }
+
+            if let Some(color) = border.1 {
+                for x in 0..border.0 {
+                    for y in 0..data.height {
+                        drawer.draw_pixel(&data, (x, y), color);
+                        drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
+                    }
+                }
+
+                for x in 0..data.width {
+                    for y in 0..border.0 {
+                        drawer.draw_pixel(&data, (x, y), color);
+                        drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
+                    }
                 }
             }
         }
 
-        if let Some(color) = border.1 {
-            for x in 0..border.0 {
-                for y in 0..data.height {
-                    drawer.draw_pixel(&data, (x, y), color);
-                    drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
-                }
-            }
-
-            for x in 0..data.width {
-                for y in 0..border.0 {
-                    drawer.draw_pixel(&data, (x, y), color);
-                    drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
-                }
-            }
-        }
-
+        let left = self.left.borrow_mut();
         {
-            let left = self.left.borrow_mut();
-            {
-                let mut ld = left.data().borrow_mut();
+            let mut ld = left.data().borrow_mut();
 
-                ld.position.0 = data.position.0 + border.0;
-                ld.position.1 = data.position.1 + border.0;
-            }
-
-            left.draw(drawer)?;
+            ld.position.0 = data.position.0 + border.0;
+            ld.position.1 = data.position.1 + border.0;
         }
+        left.draw()?;
 
+        let center = self.center.borrow_mut();
         {
-            let center = self.center.borrow_mut();
-            {
-                let mut cd = center.data().borrow_mut();
+            let mut cd = center.data().borrow_mut();
 
-                cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
-                cd.position.1 = data.position.1 + border.0;
-            }
-            center.draw(drawer)?;
+            cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
+            cd.position.1 = data.position.1 + border.0;
         }
+        center.draw()?;
 
+        let right = self.right.borrow_mut();
         {
-            let right = self.right.borrow_mut();
-            {
-                let mut rd = right.data().borrow_mut();
+            let mut rd = right.data().borrow_mut();
 
-                rd.position.0 = data.position.0 + data.width - border.0;
-                rd.position.1 = data.position.1 + border.0;
-            }
-            right.draw(drawer)?;
+            rd.position.0 = data.position.0 + data.width - border.0;
+            rd.position.1 = data.position.1 + border.0;
         }
+        right.draw()?;
 
         Ok(())
     }

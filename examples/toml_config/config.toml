@@ -18,6 +18,7 @@ border = [1, 0x74c7ecff]
     size = 24
     font_color = 0xf5e0dcff
     margin = [10,0,0,0]
+    update_rate = 1000
 
 [[bar.center]]
     widget = "clock"

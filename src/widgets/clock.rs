@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     root::Environment,
-    util::{Color, Drawer},
+    util::Color,
     widgets::{text::Text, Widget},
 };
 
@@ -85,9 +85,9 @@ impl Widget for Clock {
         Ok(())
     }
 
-    fn draw(&self, drawer: &mut Drawer) -> Result<()> {
+    fn draw(&self) -> Result<()> {
         self.update();
-        self.text.borrow_mut().draw(drawer)
+        self.text.borrow_mut().draw()
     }
 
     fn data(&self) -> &RefCell<WidgetData> {

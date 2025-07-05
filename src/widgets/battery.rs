@@ -186,7 +186,7 @@ impl Widget for Battery {
         Ok(())
     }
 
-    fn draw(&self, drawer: &mut crate::util::Drawer) -> anyhow::Result<()> {
+    fn draw(&self) -> anyhow::Result<()> {
         let info = self.get_info();
 
         let mut prev_charge = self.prev_charge.borrow_mut();
@@ -222,8 +222,8 @@ impl Widget for Battery {
         }
 
         self.align()?;
-        self.percent.borrow_mut().draw(drawer)?;
-        self.icon.borrow_mut().draw(drawer)
+        self.percent.borrow_mut().draw()?;
+        self.icon.borrow_mut().draw()
     }
 }
 
