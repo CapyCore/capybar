@@ -5,3 +5,5 @@ pub mod drawer;
 pub use drawer::Drawer;
 
 pub mod fonts;
+
+pub mod signals;

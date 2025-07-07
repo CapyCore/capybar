@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     cmp::{max, min},
+    collections::HashMap,
     num::NonZeroU32,
     rc::Rc,
 };
@@ -38,12 +39,14 @@ use wayland_client::{
 pub struct Environment {
     pub config: Config,
     pub drawer: RefCell<Drawer>,
+    pub signals: RefCell<HashMap<String, Signal>>,
 }
 
 use crate::{
     config::Config,
     util::{
         fonts::{self, FontsError},
+        signals::Signal,
         Drawer,
     },
     widgets::{
@@ -428,7 +431,15 @@ impl Root {
         self.env = Some(Rc::new(Environment {
             config: Config::default(),
             drawer: RefCell::new(Drawer::new(&mut self.shm, 1, 1)),
+            signals: RefCell::new(HashMap::new()),
         }));
+
+        self.env
+            .as_ref()
+            .unwrap()
+            .signals
+            .borrow_mut()
+            .insert("test".to_string(), Signal::new());
 
         for widget in &mut self.widgets {
             widget.bind(Rc::clone(self.env.as_ref().unwrap()))?;
