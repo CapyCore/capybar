@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 type Callback = Box<dyn Fn(&dyn Any)>;
 
@@ -9,7 +9,7 @@ type Callback = Box<dyn Fn(&dyn Any)>;
 /// from displaing the results. This is done by alowing to bind function that can
 /// react to a passed data.
 ///
-/// Downcasting and validating data is left to user. You are only provided with 
+/// Downcasting and validating data is left to user. You are only provided with
 /// `dyn Any`.
 ///
 /// Whenever signal emit is called all the functions connected to a signal are called.
@@ -35,25 +35,25 @@ type Callback = Box<dyn Fn(&dyn Any)>;
 /// signal.emit(&42i32);
 /// ```
 pub struct Signal {
-    listeners: Vec<Callback>,
+    listeners: RefCell<Vec<Callback>>,
 }
 
 impl Signal {
     pub fn new() -> Self {
         Signal {
-            listeners: Vec::new(),
+            listeners: RefCell::new(Vec::new()),
         }
     }
 
-    pub fn connect<F>(&mut self, callback: F)
+    pub fn connect<F>(&self, callback: F)
     where
         F: Fn(&dyn Any) + 'static,
     {
-        self.listeners.push(Box::new(callback));
+        self.listeners.borrow_mut().push(Box::new(callback));
     }
 
     pub fn emit<T: Any>(&self, value: &T) {
-        for callback in &self.listeners {
+        for callback in &*self.listeners.borrow_mut() {
             callback(value);
         }
     }
