@@ -103,7 +103,7 @@ impl Widget for Keyboard {
                     &text.to_string()
                 };
 
-                signal_text.borrow_mut().change_text(&layout);
+                signal_text.borrow_mut().change_text(layout);
             }
         });
 

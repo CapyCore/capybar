@@ -6,6 +6,7 @@ use super::Process;
 #[cfg(feature = "hyprland")]
 pub mod hyprland;
 
+#[allow(dead_code)]
 #[cfg(feature = "keyboard")]
 trait KeyboardTrait: Process {}
 
