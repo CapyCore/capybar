@@ -1,0 +1,18 @@
+on:
+  pull_request:
+    branches: [ master, dev ]
+  push:
+    branches: [ master, dev ]
+
+jobs:
+  build:
+    name: Build Nix targets
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          fail-mode: true
+      - name: Build default package
+        run: nix build

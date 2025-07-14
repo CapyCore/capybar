@@ -13,20 +13,48 @@ Simple customizable bar applications that aims to have as little external depend
     - Clock
     - Battery
     - CPU usage
+    - Keyboard layout
     - Row container (WIP)
     - Bar container
 
 ## Instalation
-Currently bar needs to be build manually. To do so clone the repo and write main file. Bulding the bar is done with cargo. The example is located in examples folder. To use the basic example run:
-```
-cargo build --release --example basic
+
+### Nix
+
+Capybar can be installed on nix using home manager.
+- Extend your inputs with:
+```nix
+ inputs = {
+    # ...
+    capybar.url = "github:CapyCore/capybar"; 
+  };
 ```
 
-## Usage
+- Extend your imports with:
+```nix
+imports = [ inputs.capybar.homeManagerModules.default ];
+```
+
+- Enable capybar:
+```nix
+programs.capybar = {
+    enable = true;
+}
+```
+
+### Others
+Currently bar needs to be build manually. To do so clone the repo and write main file. Bulding the bar is done with cargo. The example is located in examples folder.
+```
+cargo build --release
+```
+
 After building the bar the executable will be located in `./target/release/`
 
-The basic example exetutable is `./target/release/examples/basic`
+## Usage
 
+Capybar can be run using `capybar` command in a terminal of your choice. You can change configuration path via flag 
+`--cfg_path` (default path is `$HOME/.config/capybar`) and config extention via `--cfg_type` (default is toml, no other types are
+currently supported). More info could be accesed wit `--help` flag.
 
 ## License
 

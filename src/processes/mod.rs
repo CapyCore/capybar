@@ -14,7 +14,7 @@ use thiserror::Error;
 use crate::root::Environment;
 
 fn default_update_rate() -> i64 {
-    return 1000;
+    1000
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]

@@ -7,7 +7,7 @@ mod tests {
 
     #[test]
     fn basic_usage() {
-        let mut signal = Signal::new();
+        let signal = Signal::new();
         let last_value = Rc::new(RefCell::new(None));
         let last_value_clone = Rc::clone(&last_value);
 
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn reacts_to_correct_type() {
-        let mut signal = Signal::new();
+        let signal = Signal::new();
         let state = Rc::new(RefCell::new(0));
         let state_clone = Rc::clone(&state);
 
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn ignores_wrong_type() {
-        let mut signal = Signal::new();
+        let signal = Signal::new();
         let called = Rc::new(RefCell::new(true));
         let called_clone = Rc::clone(&called);
 
@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn latest_emit_applied() {
-        let mut signal = Signal::new();
+        let signal = Signal::new();
         let value = Rc::new(RefCell::new(0));
         let value_clone = Rc::clone(&value);
 
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn mixed_types_in_callbacks() {
-        let mut signal = Signal::new();
+        let signal = Signal::new();
         let int_state = Rc::new(RefCell::new(0));
         let string_state = Rc::new(RefCell::new(String::new()));
 

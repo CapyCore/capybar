@@ -1,8 +1,8 @@
 {
-  description = "kapibar";
+  description = "capybar";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
@@ -25,30 +25,35 @@
             rustc = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default);
           };
           
-          manifest = (pkgs.lib.importTOML ./crates/kapibar/Cargo.toml).package;
+          manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
         in
         rustPlatform.buildRustPackage {
           pname = manifest.name;
           inherit (manifest) version;
 
           buildInputs = with pkgs; [
+            fontconfig
             libxkbcommon
-            cairo
-            libpulseaudio
           ];
 
           nativeBuildInputs = with pkgs; [
             pkg-config
           ];
-          
+
           cargoLock = {
             lockFile = ./Cargo.lock;
             allowBuiltinFetchGit = true;
           };
 
           src = pkgs.lib.cleanSource ./.;
-                
-          RUSTFLAGS = "--cfg tokio_unstable";
+
+          meta = {
+              description = "Native wayland toolbar";
+              homepage = "https://github.com/CapyCore/capybar";
+              platforms = nixpkgs.lib.platforms.linux;
+              license = nixpkgs.lib.licenses.mit;
+              mainProgram = "capybar";
+          };
         };
       
       # Function to build dev shell
@@ -66,23 +71,24 @@
             rustfmt
             clippy
             pkg-config
+            fontconfig
             libxkbcommon
-            cairo
-            libpulseaudio
           ];
-
-          RUSTFLAGS = "--cfg tokio_unstable";
         };
     in
     {
       # Generate per-system outputs
       packages = forAllSystems (system: {
         default = packageFor system;
-        kapibar = packageFor system;
+        capybar = packageFor system;
       });
 
       devShells = forAllSystems (system: {
         default = devShellFor system;
       });
+
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-tree);
+
+      homeManagerModules.default = import ./nix/module.nix self;
     };
 }

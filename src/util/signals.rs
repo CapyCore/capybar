@@ -20,20 +20,26 @@ type Callback = Box<dyn Fn(&dyn Any)>;
 /// # Examples
 ///
 /// ```
-/// let mut signal = Signal::new();
-/// let last_value = Rc::new(RefCell::new(None));
-/// let last_value_clone = Rc::clone(&last_value);
+/// use capybar::util::signals::Signal;
+/// use std::{cell::RefCell, rc::Rc};
 ///
-/// signal.connect(move |data| {
-///     if let Some(value) = data.downcast_ref::<i32>() {
-///         *last_value_clone.borrow_mut() = Some(*value);
-///     }
-/// });
+/// fn main() {
+///     let mut signal = Signal::new();
+///     let last_value = Rc::new(RefCell::new(None));
+///     let last_value_clone = Rc::clone(&last_value);
 ///
-/// //...
+///     signal.connect(move |data| {
+///         if let Some(value) = data.downcast_ref::<i32>() {
+///             *last_value_clone.borrow_mut() = Some(*value);
+///         }
+///     });
 ///
-/// signal.emit(&42i32);
+///     //...
+///
+///     signal.emit(&42i32);
+/// }
 /// ```
+#[derive(Default)]
 pub struct Signal {
     listeners: RefCell<Vec<Callback>>,
 }

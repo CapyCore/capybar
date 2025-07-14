@@ -109,7 +109,7 @@ impl ProcessNew for Keyboard {
             }
         }
 
-        return Err(anyhow!("No main keyboard found"));
+        Err(anyhow!("No main keyboard found"))
     }
 }
 
