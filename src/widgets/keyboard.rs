@@ -1,18 +1,18 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use anyhow::Result;
-use chrono::{DateTime, Local, TimeDelta};
 use serde::Deserialize;
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
-use super::{
-    text::{Text, TextSettings},
-    Style, Widget, WidgetData, WidgetNew,
+use crate::{
+    root::Environment,
+    widgets::{text::Text, Widget},
 };
 
-/// Settings of a [CPU] widget
-#[derive(Deserialize, Debug, Default, Clone)]
-pub struct CPUSettings {
+use super::{text::TextSettings, Style, WidgetData, WidgetError, WidgetNew};
+
+/// Settings of a [Keyboard] widget
+#[derive(Deserialize, Default, Debug, Clone)]
+pub struct KeyboardSettings {
     #[serde(default, flatten)]
     pub default_data: WidgetData,
 
@@ -23,34 +23,26 @@ pub struct CPUSettings {
     #[serde(default, flatten)]
     pub style: Style,
 
-    /// How often to update CPU status in milliseconds
+    /// Map from underlying layout name to display name
     #[serde(default)]
-    pub update_rate: u32,
+    pub layout_mappings: HashMap<String, String>,
 }
 
-/// Widget displaying current CPU status.
-pub struct CPU {
+/// Widget displaying current keyboard layout.
+pub struct Keyboard {
     data: RefCell<WidgetData>,
+    layout_mappings: Rc<HashMap<String, String>>,
 
     icon: RefCell<Text>,
-    percent: RefCell<Text>,
+    text: Rc<RefCell<Text>>,
 
-    sys: RefCell<System>,
-
-    last_update: RefCell<DateTime<Local>>,
-    update_rate: TimeDelta,
+    env: Option<Rc<Environment>>,
 }
 
-impl CPU {
-    fn get_info(&self) -> usize {
-        let mut sys = self.sys.borrow_mut();
-        sys.refresh_cpu_usage();
-        sys.global_cpu_usage().round() as usize
-    }
-
+impl Keyboard {
     fn align(&self) -> Result<()> {
         let icon = self.icon.borrow_mut();
-        let text = self.percent.borrow_mut();
+        let text = self.text.borrow_mut();
 
         let mut icon_data = icon.data().borrow_mut();
         let mut text_data = text.data().borrow_mut();
@@ -78,40 +70,53 @@ impl CPU {
     }
 }
 
-impl Widget for CPU {
-    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
-        self.percent.borrow_mut().bind(env.clone())?;
+impl Widget for Keyboard {
+    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+        self.env = Some(env.clone());
+        self.text.borrow_mut().bind(env.clone())?;
         self.icon.borrow_mut().bind(env)
     }
 
     fn init(&self) -> Result<()> {
+        if self.env.is_none() {
+            return Err(WidgetError::InitWithNoEnv("Keyboard".to_string()).into());
+        }
+
+        let signals = self.env.as_ref().unwrap().signals.borrow_mut();
+
+        if !signals.contains_key("keyboard") {
+            return Err(WidgetError::NoCorespondingSignal(
+                "Keyboard".to_string(),
+                "Keyboard".to_string(),
+            )
+            .into());
+        }
+
+        let signal_text = Rc::clone(&self.text);
+        let layout_mappings = Rc::clone(&self.layout_mappings);
+
+        signals["keyboard"].connect(move |data| {
+            if let Some(text) = data.downcast_ref::<String>() {
+                let layout = if layout_mappings.contains_key(text) {
+                    layout_mappings.get(text).unwrap()
+                } else {
+                    &text.to_string()
+                };
+
+                signal_text.borrow_mut().change_text(&layout);
+            }
+        });
+
         self.icon.borrow_mut().init()?;
-        self.percent.borrow_mut().init()?;
+        self.text.borrow_mut().init()?;
 
         self.align()
     }
 
     fn draw(&self) -> Result<()> {
-        let mut last_update = self.last_update.borrow_mut();
+        self.align()?;
 
-        if Local::now() - *last_update >= self.update_rate {
-            let info = self.get_info();
-
-            {
-                let mut text = self.percent.borrow_mut();
-                if self.sys.borrow_mut().cpus().is_empty() {
-                    self.icon.borrow_mut().change_text("");
-                    text.change_text("ERR");
-                } else {
-                    text.change_text(format!("{info}%").as_str());
-                }
-            }
-
-            self.align()?;
-            *last_update = Local::now();
-        }
-
-        self.percent.borrow_mut().draw()?;
+        self.text.borrow_mut().draw()?;
         self.icon.borrow_mut().draw()
     }
 
@@ -120,22 +125,21 @@ impl Widget for CPU {
     }
 }
 
-impl WidgetNew for CPU {
-    type Settings = CPUSettings;
+impl WidgetNew for Keyboard {
+    type Settings = KeyboardSettings;
 
-    fn new(
-        env: Option<std::rc::Rc<crate::root::Environment>>,
-        settings: Self::Settings,
-    ) -> anyhow::Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
     where
         Self: Sized,
     {
-        Ok(Self {
+        Ok(Keyboard {
             data: RefCell::new(settings.default_data),
+            layout_mappings: Rc::new(settings.layout_mappings),
+
             icon: RefCell::new(Text::new(
                 env.clone(),
                 TextSettings {
-                    text: "".to_string(),
+                    text: "󰌌".to_string(),
                     default_data: WidgetData {
                         margin: (0, 0, 0, 0),
                         ..WidgetData::default()
@@ -144,10 +148,10 @@ impl WidgetNew for CPU {
                     ..settings.text_settings.clone()
                 },
             )?),
-            percent: RefCell::new(Text::new(
+            text: Rc::new(RefCell::new(Text::new(
                 env,
                 TextSettings {
-                    text: "Err".to_string(),
+                    text: String::new(),
 
                     default_data: WidgetData {
                         margin: (5, 0, 2, 0),
@@ -155,16 +159,9 @@ impl WidgetNew for CPU {
                     },
                     ..settings.text_settings.clone()
                 },
-            )?),
+            )?)),
 
-            sys: RefCell::new(System::new_with_specifics(
-                RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
-            )),
-
-            update_rate: TimeDelta::milliseconds(settings.update_rate as i64),
-            last_update: RefCell::new(
-                chrono::Local::now() - TimeDelta::milliseconds(settings.update_rate as i64),
-            ),
+            env: None,
         })
     }
 }

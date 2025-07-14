@@ -4,6 +4,8 @@ use std::{
     collections::HashMap,
     num::NonZeroU32,
     rc::Rc,
+    thread,
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -35,25 +37,26 @@ use wayland_client::{
     Connection, EventQueue, QueueHandle,
 };
 
-/// Structure containing things all the widgets in capybar needs access to
-pub struct Environment {
-    pub config: Config,
-    pub drawer: RefCell<Drawer>,
-    pub signals: RefCell<HashMap<String, Signal>>,
-}
-
 use crate::{
     config::Config,
+    processes::{clients, Process, ProcessNew},
     util::{
         fonts::{self, FontsError},
         signals::Signal,
         Drawer,
     },
     widgets::{
-        battery::Battery, clock::Clock, containers::bar::Bar, cpu::CPU, text::Text, Widget,
-        WidgetNew, WidgetsList,
+        self, battery::Battery, clock::Clock, containers::bar::Bar, cpu::CPU, keyboard::Keyboard,
+        text::Text, Widget, WidgetNew, WidgetsList,
     },
 };
+
+/// Structure containing things all the widgets in capybar needs access to
+pub struct Environment {
+    pub config: Config,
+    pub drawer: RefCell<Drawer>,
+    pub signals: RefCell<HashMap<String, Signal>>,
+}
 
 #[derive(Error, Debug)]
 pub enum RootError {
@@ -69,7 +72,6 @@ pub struct Root {
     output_state: OutputState,
     shm: Shm,
 
-    exit: bool,
     first_configure: bool,
     width: u32,
     height: u32,
@@ -80,6 +82,7 @@ pub struct Root {
     pointer: Option<wl_pointer::WlPointer>,
 
     widgets: Vec<Box<dyn Widget>>,
+    processes: Vec<Box<dyn Process>>,
     env: Option<Rc<Environment>>,
 }
 
@@ -168,9 +171,7 @@ impl OutputHandler for Root {
 }
 
 impl LayerShellHandler for Root {
-    fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _layer: &LayerSurface) {
-        self.exit = true;
-    }
+    fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _layer: &LayerSurface) {}
 
     fn configure(
         &mut self,
@@ -278,11 +279,8 @@ impl KeyboardHandler for Root {
         _qh: &QueueHandle<Self>,
         _: &wl_keyboard::WlKeyboard,
         _: u32,
-        event: KeyEvent,
+        _: KeyEvent,
     ) {
-        if event.keysym == Keysym::Escape {
-            self.exit = true;
-        }
     }
 
     fn release_key(
@@ -368,7 +366,6 @@ impl Root {
             output_state: OutputState::new(globals, &qh),
             shm,
 
-            exit: false,
             first_configure: true,
             width: 16,
             height: 16,
@@ -379,6 +376,7 @@ impl Root {
             pointer: None,
 
             widgets: Vec::new(),
+            processes: Vec::new(),
             env: None,
         };
 
@@ -394,6 +392,10 @@ impl Root {
                 WidgetsList::Clock(settings) => bar.create_child_left(Clock::new, settings)?,
                 WidgetsList::Battery(settings) => bar.create_child_left(Battery::new, settings)?,
                 WidgetsList::CPU(settings) => bar.create_child_left(CPU::new, settings)?,
+                WidgetsList::Keyboard(wsettings, psettings) => {
+                    self.create_process(clients::Keyboard::new, psettings)?;
+                    bar.create_child_left(Keyboard::new, wsettings)?
+                }
             }
         }
 
@@ -405,6 +407,10 @@ impl Root {
                     bar.create_child_center(Battery::new, settings)?
                 }
                 WidgetsList::CPU(settings) => bar.create_child_center(CPU::new, settings)?,
+                WidgetsList::Keyboard(wsettings, psettings) => {
+                    self.create_process(clients::Keyboard::new, psettings)?;
+                    bar.create_child_center(widgets::keyboard::Keyboard::new, wsettings)?
+                }
             }
         }
 
@@ -414,6 +420,10 @@ impl Root {
                 WidgetsList::Clock(settings) => bar.create_child_right(Clock::new, settings)?,
                 WidgetsList::Battery(settings) => bar.create_child_right(Battery::new, settings)?,
                 WidgetsList::CPU(settings) => bar.create_child_right(CPU::new, settings)?,
+                WidgetsList::Keyboard(wsettings, psettings) => {
+                    self.create_process(clients::Keyboard::new, psettings)?;
+                    bar.create_child_right(widgets::keyboard::Keyboard::new, wsettings)?
+                }
             }
         }
 
@@ -425,8 +435,8 @@ impl Root {
         self.layer.set_anchor(Anchor::TOP);
         self.layer
             .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-        self.width = 0;
-        self.height = 0;
+        self.width = 1;
+        self.height = 1;
 
         self.env = Some(Rc::new(Environment {
             config: Config::default(),
@@ -434,18 +444,15 @@ impl Root {
             signals: RefCell::new(HashMap::new()),
         }));
 
-        self.env
-            .as_ref()
-            .unwrap()
-            .signals
-            .borrow_mut()
-            .insert("test".to_string(), Signal::new());
+        for process in &mut self.processes {
+            process.bind(Rc::clone(self.env.as_ref().unwrap()))?;
 
-        for widget in &mut self.widgets {
-            widget.bind(Rc::clone(self.env.as_ref().unwrap()))?;
+            process.init()?;
         }
 
         for widget in &mut self.widgets {
+            widget.bind(Rc::clone(self.env.as_ref().unwrap()))?;
+
             widget.init()?;
             let data = widget.data().borrow_mut();
             self.height = max(
@@ -487,13 +494,10 @@ impl Root {
 
         loop {
             event_queue.blocking_dispatch(self)?;
-
-            if self.exit {
-                break;
-            }
+            thread::sleep(Duration::from_millis(100));
         }
 
-        Ok(self)
+        //Ok(self)
     }
 
     pub fn add_font_by_name(&mut self, name: &'static str) -> Result<(), FontsError> {
@@ -520,9 +524,23 @@ impl Root {
         Ok(())
     }
 
+    pub fn create_process<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    where
+        W: ProcessNew + Process + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+    {
+        self.processes
+            .push(Box::new(f(self.env.clone(), settings)?));
+        Ok(())
+    }
+
     fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<()> {
         if self.env.is_none() {
             return Err(RootError::EnvironmentNotInit.into());
+        }
+
+        for process in &mut self.processes {
+            process.run()?;
         }
 
         self.layer

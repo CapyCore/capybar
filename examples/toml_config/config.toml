@@ -13,12 +13,21 @@ background = 0x1e1e2eff
 border = [1, 0x74c7ecff]
 
 [[bar.left]]
+    widget = "keyboard"
+    [[bar.left.settings]]
+    size = 24
+    font_color = 0xf5e0dcff
+    margin = [10,0,0,0]
+    layout_mappings = {"Russian" = "RU", "English (US)" = "EN"}
+    [[bar.left.settings]]
+    update_rate = 0
+
+[[bar.left]]
     widget = "cpu"
     [bar.left.settings]
     size = 24
     font_color = 0xf5e0dcff
     margin = [10,0,0,0]
-    update_rate = 1000
 
 [[bar.center]]
     widget = "clock"

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use capybar::{config::Config, Root};
+use capybar::{config::Config, root::Root};
 use wayland_client::{globals::registry_queue_init, Connection};
 
 fn main() -> Result<()> {

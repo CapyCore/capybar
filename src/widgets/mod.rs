@@ -3,6 +3,7 @@ pub mod containers;
 pub mod battery;
 pub mod clock;
 pub mod cpu;
+pub mod keyboard;
 pub mod text;
 
 use std::{cell::RefCell, rc::Rc};
@@ -11,7 +12,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{root::Environment, util::Color};
+use crate::{processes::ProcessSettings, root::Environment, util::Color};
 
 use {battery::BatterySettings, clock::ClockSettings, cpu::CPUSettings, text::TextSettings};
 
@@ -20,7 +21,7 @@ pub trait Widget {
     /// Bind a widget to a new environment.
     fn bind(&mut self, env: Rc<Environment>) -> Result<()>;
 
-    /// Draw an entire widget to a `Drawer`
+    /// Draw an entire widget to a current environment's `Drawer`
     fn draw(&self) -> Result<()>;
 
     /// Prepare `Widget` for a first draw
@@ -47,8 +48,20 @@ pub enum WidgetError {
     #[error("Invalid widget bounds")]
     InvalidBounds,
 
+    /// Argument is a name of a widget
     #[error("Trying to draw a widget \"{0}\" not bound to any environment")]
     DrawWithNoEnv(String),
+
+    /// Argument is a name of a widget
+    #[error("Trying to initialise a widget \"{0}\" not bound to any environment")]
+    InitWithNoEnv(String),
+
+    /// Arguments are a name of a widget and a name of coresponding process
+    #[error(
+        "When initialising widget \"{0}\" no coresponding signal was found.
+        Maybe process \"{1}\" was not created?"
+    )]
+    NoCorespondingSignal(String, String),
 }
 
 /// Global common data used by `Widget` data structure.
@@ -128,4 +141,5 @@ pub enum WidgetsList {
     Battery(BatterySettings),
     #[serde(rename = "cpu")]
     CPU(CPUSettings),
+    Keyboard(keyboard::KeyboardSettings, ProcessSettings),
 }

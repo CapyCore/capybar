@@ -1,4 +1,5 @@
 use capybar::{
+    root::Root,
     util::Color,
     widgets::{
         battery::{Battery, BatterySettings},
@@ -8,7 +9,6 @@ use capybar::{
         text::TextSettings,
         Style, WidgetData, WidgetNew,
     },
-    Root,
 };
 use wayland_client::{globals::registry_queue_init, Connection};
 
@@ -60,6 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     bar.create_child_left(
         CPU::new,
         CPUSettings {
+            update_rate: 1000,
             text_settings: TextSettings {
                 font_color: catpuccin_mocha.font,
                 size: 25.0,
