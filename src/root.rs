@@ -39,7 +39,7 @@ use wayland_client::{
 
 use crate::{
     config::Config,
-    processes::{clients, Process, ProcessNew},
+    processes::{clients, Process, ProcessError, ProcessNew},
     util::{
         fonts::{self, FontsError},
         signals::Signal,
@@ -47,7 +47,7 @@ use crate::{
     },
     widgets::{
         self, battery::Battery, clock::Clock, containers::bar::Bar, cpu::CPU, keyboard::Keyboard,
-        text::Text, Widget, WidgetNew, WidgetsList,
+        text::Text, Widget, WidgetError, WidgetNew, WidgetsList,
     },
 };
 
@@ -518,7 +518,7 @@ impl Root {
     pub fn create_widget<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.widgets.push(Box::new(f(self.env.clone(), settings)?));
         Ok(())
@@ -527,7 +527,7 @@ impl Root {
     pub fn create_process<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: ProcessNew + Process + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, ProcessError>,
     {
         self.processes
             .push(Box::new(f(self.env.clone(), settings)?));

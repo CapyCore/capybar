@@ -10,7 +10,7 @@ use crate::{
     widgets::{text::Text, Widget},
 };
 
-use super::{text::TextSettings, WidgetData, WidgetNew};
+use super::{text::TextSettings, WidgetData, WidgetError, WidgetNew};
 
 fn default_format() -> String {
     "%H:%M".to_string()
@@ -67,11 +67,11 @@ impl Clock {
 }
 
 impl Widget for Clock {
-    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+    fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.text.borrow_mut().bind(env)
     }
 
-    fn init(&self) -> Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         let text = self.text.borrow_mut();
 
         text.init()?;
@@ -85,7 +85,7 @@ impl Widget for Clock {
         Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
+    fn draw(&self) -> Result<(), WidgetError> {
         self.update();
         self.text.borrow_mut().draw()
     }
@@ -98,7 +98,7 @@ impl Widget for Clock {
 impl WidgetNew for Clock {
     type Settings = ClockSettings;
 
-    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {

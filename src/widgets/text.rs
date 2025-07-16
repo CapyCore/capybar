@@ -91,7 +91,7 @@ impl Text {
 }
 
 impl Widget for Text {
-    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+    fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(env);
 
         let _env = self.env.as_mut().unwrap();
@@ -107,16 +107,16 @@ impl Widget for Text {
         Ok(())
     }
 
-    fn init(&self) -> Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         self.update_width();
         self.data.borrow_mut().height = self.layout.height() as usize;
 
         Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
+    fn draw(&self) -> Result<(), WidgetError> {
         if self.env.is_none() {
-            return Err(WidgetError::DrawWithNoEnv("Text".to_string()).into());
+            return Err(WidgetError::DrawWithNoEnv("Text".to_string()));
         }
 
         let font = &fonts::fonts_vec()[self.settings.fontid];
@@ -146,7 +146,7 @@ impl Widget for Text {
 impl WidgetNew for Text {
     type Settings = TextSettings;
 
-    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {
