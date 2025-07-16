@@ -8,7 +8,6 @@ pub mod text;
 
 use std::{cell::RefCell, rc::Rc};
 
-use anyhow::Result;
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -19,13 +18,13 @@ use {battery::BatterySettings, clock::ClockSettings, cpu::CPUSettings, text::Tex
 /// A **data structure** that can be used as a widget inside a capybar.
 pub trait Widget {
     /// Bind a widget to a new environment.
-    fn bind(&mut self, env: Rc<Environment>) -> Result<()>;
+    fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError>;
 
     /// Draw an entire widget to a current environment's `Drawer`
-    fn draw(&self) -> Result<()>;
+    fn draw(&self) -> Result<(), WidgetError>;
 
     /// Prepare `Widget` for a first draw
-    fn init(&self) -> Result<()>;
+    fn init(&self) -> Result<(), WidgetError>;
 
     /// Return `WidgetData` associated to the widget
     fn data(&self) -> &RefCell<WidgetData>;
@@ -38,7 +37,7 @@ pub trait Widget {
 pub trait WidgetNew: Widget {
     type Settings;
 
-    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self, WidgetError>
     where
         Self: Sized;
 }
@@ -62,6 +61,9 @@ pub enum WidgetError {
         Maybe process \"{1}\" was not created?"
     )]
     NoCorespondingSignal(String, String),
+
+    #[error(transparent)]
+    Custom(#[from] anyhow::Error),
 }
 
 /// Global common data used by `Widget` data structure.
@@ -117,7 +119,7 @@ pub trait WidgetStyled: Widget {
 
     fn style_mut(&mut self) -> &mut Style;
 
-    fn apply_style(&self) -> Result<()> {
+    fn apply_style(&self) -> Result<(), WidgetError> {
         let mut data = self.data().borrow_mut();
         let style = self.style();
 

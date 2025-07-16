@@ -7,7 +7,7 @@ use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use super::{
     text::{Text, TextSettings},
-    Style, Widget, WidgetData, WidgetNew,
+    Style, Widget, WidgetData, WidgetError, WidgetNew,
 };
 
 /// Settings of a [CPU] widget
@@ -48,7 +48,7 @@ impl CPU {
         sys.global_cpu_usage().round() as usize
     }
 
-    fn align(&self) -> Result<()> {
+    fn align(&self) {
         let icon = self.icon.borrow_mut();
         let text = self.percent.borrow_mut();
 
@@ -73,25 +73,28 @@ impl CPU {
             + text_data.margin.0
             + text_data.margin.1
             + text_data.width;
-
-        Ok(())
     }
 }
 
 impl Widget for CPU {
-    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
+    fn bind(
+        &mut self,
+        env: std::rc::Rc<crate::root::Environment>,
+    ) -> anyhow::Result<(), WidgetError> {
         self.percent.borrow_mut().bind(env.clone())?;
         self.icon.borrow_mut().bind(env)
     }
 
-    fn init(&self) -> Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         self.icon.borrow_mut().init()?;
         self.percent.borrow_mut().init()?;
 
-        self.align()
+        self.align();
+
+        Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
+    fn draw(&self) -> Result<(), WidgetError> {
         let mut last_update = self.last_update.borrow_mut();
 
         if Local::now() - *last_update >= self.update_rate {
@@ -107,7 +110,7 @@ impl Widget for CPU {
                 }
             }
 
-            self.align()?;
+            self.align();
             *last_update = Local::now();
         }
 
@@ -126,7 +129,7 @@ impl WidgetNew for CPU {
     fn new(
         env: Option<std::rc::Rc<crate::root::Environment>>,
         settings: Self::Settings,
-    ) -> anyhow::Result<Self>
+    ) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {

@@ -59,7 +59,7 @@ impl Bar {
     pub fn create_child_left<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.left
             .borrow_mut()
@@ -70,7 +70,7 @@ impl Bar {
     pub fn create_child_center<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.center
             .borrow_mut()
@@ -81,7 +81,7 @@ impl Bar {
     pub fn create_child_right<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.right
             .borrow_mut()
@@ -91,7 +91,10 @@ impl Bar {
 }
 
 impl Widget for Bar {
-    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
+    fn bind(
+        &mut self,
+        env: std::rc::Rc<crate::root::Environment>,
+    ) -> anyhow::Result<(), WidgetError> {
         self.left.borrow_mut().bind(Rc::clone(&env))?;
         self.center.borrow_mut().bind(Rc::clone(&env))?;
         self.right.borrow_mut().bind(Rc::clone(&env))?;
@@ -99,9 +102,9 @@ impl Widget for Bar {
         Ok(())
     }
 
-    fn draw(&self) -> anyhow::Result<()> {
+    fn draw(&self) -> anyhow::Result<(), WidgetError> {
         if self.env.is_none() {
-            return Err(WidgetError::DrawWithNoEnv("Bar".to_string()).into());
+            return Err(WidgetError::DrawWithNoEnv("Bar".to_string()));
         }
 
         let data = self.data.borrow_mut();
@@ -168,7 +171,7 @@ impl Widget for Bar {
         Ok(())
     }
 
-    fn init(&self) -> anyhow::Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         let left = self.left.borrow_mut();
         let center = self.center.borrow_mut();
         let right = self.right.borrow_mut();
@@ -206,7 +209,7 @@ impl WidgetNew for Bar {
     fn new(
         env: Option<std::rc::Rc<crate::root::Environment>>,
         settings: Self::Settings,
-    ) -> anyhow::Result<Self>
+    ) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {

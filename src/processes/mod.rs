@@ -7,7 +7,6 @@ pub mod clients;
 
 use std::rc::Rc;
 
-use anyhow::Result;
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -26,13 +25,13 @@ pub struct ProcessSettings {
 /// A **data structure** that can be used as a widget inside a capybar.
 pub trait Process {
     /// Bind a widget to a new environment.
-    fn bind(&mut self, env: Rc<Environment>) -> Result<()>;
+    fn bind(&mut self, env: Rc<Environment>) -> Result<(), ProcessError>;
 
     /// Prepare `Process` for a first run
-    fn init(&self) -> Result<()>;
+    fn init(&self) -> Result<(), ProcessError>;
 
     /// Run the process
-    fn run(&self) -> Result<()>;
+    fn run(&self) -> Result<(), ProcessError>;
 }
 
 /// A `Process` that can be unifiedly created.
@@ -42,10 +41,17 @@ pub trait Process {
 pub trait ProcessNew {
     type Settings;
 
-    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self, ProcessError>
     where
         Self: Sized;
 }
 
 #[derive(Debug, Error)]
-pub enum ProcessError {}
+pub enum ProcessError {
+    /// Argument is a name of a widget
+    #[error("Trying to run a procces \"{0}\" not bound to any environment")]
+    RunWithNoEnv(String),
+
+    #[error("Custom error occured in widget \"{0}\": \n \"{1}\"")]
+    Custom(String, anyhow::Error),
+}

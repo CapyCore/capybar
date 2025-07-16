@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use super::{
     text::{Text, TextSettings},
-    Style, Widget, WidgetData, WidgetNew, WidgetStyled,
+    Style, Widget, WidgetData, WidgetError, WidgetNew, WidgetStyled,
 };
 
 const fn battery_not_charging_default() -> [char; 11] {
@@ -171,12 +171,15 @@ impl Widget for Battery {
         &self.data
     }
 
-    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> anyhow::Result<()> {
+    fn bind(
+        &mut self,
+        env: std::rc::Rc<crate::root::Environment>,
+    ) -> anyhow::Result<(), WidgetError> {
         self.percent.borrow_mut().bind(env.clone())?;
         self.icon.borrow_mut().bind(env)
     }
 
-    fn init(&self) -> Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         self.icon.borrow_mut().init()?;
         self.percent.borrow_mut().init()?;
 
@@ -186,7 +189,7 @@ impl Widget for Battery {
         Ok(())
     }
 
-    fn draw(&self) -> anyhow::Result<()> {
+    fn draw(&self) -> anyhow::Result<(), WidgetError> {
         let info = self.get_info();
 
         let mut prev_charge = self.prev_charge.borrow_mut();
@@ -233,12 +236,18 @@ impl WidgetNew for Battery {
     fn new(
         env: Option<std::rc::Rc<crate::root::Environment>>,
         settings: Self::Settings,
-    ) -> anyhow::Result<Self>
+    ) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {
+        let manager = Manager::new();
+        if let Err(err) = manager {
+            return Err(WidgetError::Custom(err.into()));
+        }
+
+        let manager = manager.unwrap();
         Ok(Self {
-            manager: Manager::new()?,
+            manager,
 
             icon: RefCell::new(Text::new(
                 env.clone(),

@@ -40,7 +40,7 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    fn align(&self) -> Result<()> {
+    fn align(&self) {
         let icon = self.icon.borrow_mut();
         let text = self.text.borrow_mut();
 
@@ -65,21 +65,19 @@ impl Keyboard {
             + text_data.margin.0
             + text_data.margin.1
             + text_data.width;
-
-        Ok(())
     }
 }
 
 impl Widget for Keyboard {
-    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+    fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(env.clone());
         self.text.borrow_mut().bind(env.clone())?;
         self.icon.borrow_mut().bind(env)
     }
 
-    fn init(&self) -> Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         if self.env.is_none() {
-            return Err(WidgetError::InitWithNoEnv("Keyboard".to_string()).into());
+            return Err(WidgetError::InitWithNoEnv("Keyboard".to_string()));
         }
 
         let signals = self.env.as_ref().unwrap().signals.borrow_mut();
@@ -88,8 +86,7 @@ impl Widget for Keyboard {
             return Err(WidgetError::NoCorespondingSignal(
                 "Keyboard".to_string(),
                 "Keyboard".to_string(),
-            )
-            .into());
+            ));
         }
 
         let signal_text = Rc::clone(&self.text);
@@ -110,11 +107,13 @@ impl Widget for Keyboard {
         self.icon.borrow_mut().init()?;
         self.text.borrow_mut().init()?;
 
-        self.align()
+        self.align();
+
+        Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
-        self.align()?;
+    fn draw(&self) -> Result<(), WidgetError> {
+        self.align();
 
         self.text.borrow_mut().draw()?;
         self.icon.borrow_mut().draw()
@@ -128,7 +127,7 @@ impl Widget for Keyboard {
 impl WidgetNew for Keyboard {
     type Settings = KeyboardSettings;
 
-    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {

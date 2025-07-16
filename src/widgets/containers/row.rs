@@ -60,7 +60,7 @@ pub struct Row {
 }
 
 impl Widget for Row {
-    fn bind(&mut self, env: Rc<Environment>) -> Result<()> {
+    fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(Rc::clone(&env));
         let mut children = self.children.borrow_mut();
 
@@ -72,7 +72,7 @@ impl Widget for Row {
         Ok(())
     }
 
-    fn init(&self) -> Result<()> {
+    fn init(&self) -> Result<(), WidgetError> {
         let mut data = self.data.borrow_mut();
         let mut children = self.children.borrow_mut();
         let border = match self.settings.border {
@@ -92,9 +92,9 @@ impl Widget for Row {
         Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
+    fn draw(&self) -> Result<(), WidgetError> {
         if self.env.is_none() {
-            return Err(WidgetError::DrawWithNoEnv("Row".to_string()).into());
+            return Err(WidgetError::DrawWithNoEnv("Row".to_string()));
         }
 
         self.align_children()?;
@@ -320,7 +320,7 @@ impl Row {
 
 impl WidgetNew for Row {
     type Settings = RowSettings;
-    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self>
+    fn new(env: Option<Rc<Environment>>, settings: Self::Settings) -> Result<Self, WidgetError>
     where
         Self: Sized,
     {

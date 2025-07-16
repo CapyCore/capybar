@@ -18,9 +18,5 @@ in with lib; {
 
     config = mkIf cfg.enable {
         home.packages = [ cfg.package ];
-
-#        xdg.configFile."capybar/config.toml" = {
-#            text = builtins.toTOML cfg.settings;
-#        };
     };
 }
