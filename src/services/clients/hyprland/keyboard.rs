@@ -5,12 +5,12 @@ use chrono::{DateTime, Duration, Local};
 use hyprland::{data::Devices, shared::HyprData};
 
 use crate::{
-    processes::{clients::KeyboardTrait, Process, ProcessError, ProcessNew, ProcessSettings},
     root::Environment,
+    services::{clients::KeyboardTrait, ProcessSettings, Service, ServiceError, ServiceNew},
     util::signals::Signal,
 };
 
-/// Process that tracks current keyboard layout
+/// Service that tracks current keyboard layout
 pub struct Keyboard {
     settings: ProcessSettings,
 
@@ -21,16 +21,16 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    fn get_main_keyboard() -> Result<hyprland::data::Keyboard, ProcessError> {
+    fn get_main_keyboard() -> Result<hyprland::data::Keyboard, ServiceError> {
         let devices = Devices::get();
         if let Err(err) = devices {
-            return Err(ProcessError::Custom("Keyboard".to_string(), err.into()));
+            return Err(ServiceError::Custom("Keyboard".to_string(), err.into()));
         }
 
         let keyboards = devices.unwrap().keyboards;
 
         if keyboards.is_empty() {
-            return Err(ProcessError::Custom(
+            return Err(ServiceError::Custom(
                 "Keyboard".to_string(),
                 anyhow!("No Keyboard connected"),
             ));
@@ -42,22 +42,22 @@ impl Keyboard {
             }
         }
 
-        Err(ProcessError::Custom(
+        Err(ServiceError::Custom(
             "Keyboard".to_string(),
             anyhow!("No main keyboard found"),
         ))
     }
 }
 
-impl Process for Keyboard {
-    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> Result<(), ProcessError> {
+impl Service for Keyboard {
+    fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> Result<(), ServiceError> {
         self.env = Some(Rc::clone(&env));
         Ok(())
     }
 
-    fn init(&self) -> Result<(), ProcessError> {
+    fn init(&self) -> Result<(), ServiceError> {
         if self.env.is_none() {
-            return Err(ProcessError::RunWithNoEnv("Keyboard".to_string()));
+            return Err(ServiceError::RunWithNoEnv("Keyboard".to_string()));
         }
 
         let mut signals = self.env.as_ref().unwrap().signals.borrow_mut();
@@ -71,9 +71,9 @@ impl Process for Keyboard {
         Ok(())
     }
 
-    fn run(&self) -> Result<(), ProcessError> {
+    fn run(&self) -> Result<(), ServiceError> {
         if self.env.is_none() {
-            return Err(ProcessError::RunWithNoEnv("Keyboard".to_string()));
+            return Err(ServiceError::RunWithNoEnv("Keyboard".to_string()));
         }
 
         let mut last_update = self.last_update.borrow_mut();
@@ -94,13 +94,13 @@ impl Process for Keyboard {
     }
 }
 
-impl ProcessNew for Keyboard {
+impl ServiceNew for Keyboard {
     type Settings = ProcessSettings;
 
     fn new(
         env: Option<std::rc::Rc<crate::root::Environment>>,
         settings: Self::Settings,
-    ) -> Result<Self, ProcessError>
+    ) -> Result<Self, ServiceError>
     where
         Self: Sized,
     {

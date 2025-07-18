@@ -39,7 +39,7 @@ use wayland_client::{
 
 use crate::{
     config::Config,
-    processes::{clients, Process, ProcessError, ProcessNew},
+    services::{clients, Service, ServiceError, ServiceNew},
     util::{
         fonts::{self, FontsError},
         signals::Signal,
@@ -82,7 +82,7 @@ pub struct Root {
     pointer: Option<wl_pointer::WlPointer>,
 
     widgets: Vec<Box<dyn Widget>>,
-    processes: Vec<Box<dyn Process>>,
+    services: Vec<Box<dyn Service>>,
     env: Option<Rc<Environment>>,
 }
 
@@ -94,7 +94,6 @@ impl CompositorHandler for Root {
         _surface: &wl_surface::WlSurface,
         _new_factor: i32,
     ) {
-        // Not needed for this example.
     }
 
     fn transform_changed(
@@ -104,7 +103,6 @@ impl CompositorHandler for Root {
         _surface: &wl_surface::WlSurface,
         _new_transform: wl_output::Transform,
     ) {
-        // Not needed for this example.
     }
 
     fn frame(
@@ -126,7 +124,6 @@ impl CompositorHandler for Root {
         _surface: &wl_surface::WlSurface,
         _output: &wl_output::WlOutput,
     ) {
-        // Not needed for this example.
     }
 
     fn surface_leave(
@@ -136,7 +133,6 @@ impl CompositorHandler for Root {
         _surface: &wl_surface::WlSurface,
         _output: &wl_output::WlOutput,
     ) {
-        // Not needed for this example.
     }
 }
 
@@ -184,7 +180,6 @@ impl LayerShellHandler for Root {
         self.width = NonZeroU32::new(configure.new_size.0).map_or(256, NonZeroU32::get);
         self.height = NonZeroU32::new(configure.new_size.1).map_or(256, NonZeroU32::get);
 
-        // Initiate the first draw.
         if self.first_configure {
             self.first_configure = false;
             if let Err(a) = self.draw(qh) {
@@ -376,7 +371,7 @@ impl Root {
             pointer: None,
 
             widgets: Vec::new(),
-            processes: Vec::new(),
+            services: Vec::new(),
             env: None,
         };
 
@@ -444,7 +439,7 @@ impl Root {
             signals: RefCell::new(HashMap::new()),
         }));
 
-        for process in &mut self.processes {
+        for process in &mut self.services {
             process.bind(Rc::clone(self.env.as_ref().unwrap()))?;
 
             process.init()?;
@@ -526,11 +521,10 @@ impl Root {
 
     pub fn create_process<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
-        W: ProcessNew + Process + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, ProcessError>,
+        W: ServiceNew + Service + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, ServiceError>,
     {
-        self.processes
-            .push(Box::new(f(self.env.clone(), settings)?));
+        self.services.push(Box::new(f(self.env.clone(), settings)?));
         Ok(())
     }
 
@@ -539,7 +533,7 @@ impl Root {
             return Err(RootError::EnvironmentNotInit.into());
         }
 
-        for process in &mut self.processes {
+        for process in &mut self.services {
             process.run()?;
         }
 
