@@ -11,7 +11,7 @@ use std::{cell::RefCell, rc::Rc};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{processes::ProcessSettings, root::Environment, util::Color};
+use crate::{root::Environment, services::ProcessSettings, util::Color};
 
 use {battery::BatterySettings, clock::ClockSettings, cpu::CPUSettings, text::TextSettings};
 
