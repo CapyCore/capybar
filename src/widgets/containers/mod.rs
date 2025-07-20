@@ -1,69 +1,34 @@
 pub mod bar;
 pub mod row;
 
-use std::borrow::{Borrow, BorrowMut};
+use std::rc::Rc;
 
 use anyhow::Result;
 
-use crate::widgets::Widget;
+use crate::{
+    root::Environment,
+    services::{Service, ServiceError, ServiceNew},
+    widgets::Widget,
+};
 
-/// Wrapper for [Vec]. Currently is pretty useles though....
-pub struct WidgetVec {
-    pub is_aligned: bool,
-    pub widgets: Vec<Box<dyn Widget>>,
-}
+use super::{WidgetError, WidgetNew};
 
-impl Default for WidgetVec {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl WidgetVec {
-    pub fn new() -> Self {
-        Self {
-            is_aligned: false,
-            widgets: Vec::new(),
-        }
-    }
-
-    pub fn is_aligned(&self) -> bool {
-        self.is_aligned
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.widgets.is_empty()
-    }
-
-    pub fn widgets(&self) -> &Vec<Box<dyn Widget>> {
-        self.borrow()
-    }
-
-    pub fn widgets_mut(&mut self) -> &mut Vec<Box<dyn Widget>> {
-        self.borrow_mut()
-    }
-}
-
-impl Borrow<Vec<Box<dyn Widget>>> for WidgetVec {
-    fn borrow(&self) -> &Vec<Box<dyn Widget>> {
-        &self.widgets
-    }
-}
-
-impl BorrowMut<Vec<Box<dyn Widget>>> for WidgetVec {
-    fn borrow_mut(&mut self) -> &mut Vec<Box<dyn Widget>> {
-        self.is_aligned = false;
-        &mut self.widgets
-    }
-}
-
-/// Container is a widget that is responsible for positioning of it's child widgets. It may or may
+/// [Container] is a [Widget] that is responsible for positioning of it's child widgets. It may or may
 /// not have any additional logic behind it.
 pub trait Container: Widget {
-    /// Align is called before drawing the container
-    fn align_children(&self) -> Result<()>;
+    fn create_service<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    where
+        W: ServiceNew + Service + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, ServiceError>;
 
-    fn children(&self) -> &WidgetVec;
+    /// Run all child [Service] objects
+    fn run(&self) -> Result<()>;
+}
 
-    fn children_mut(&mut self) -> &WidgetVec;
+/// Trait that describes [Container] that has single clear way to add child widget
+pub trait ContainerSingle: Container {
+    fn create_widget<W, F>(&mut self, f: F, settings: W::Settings) -> Result<(), WidgetError>
+    where
+        W: WidgetNew + Widget + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>;
 }

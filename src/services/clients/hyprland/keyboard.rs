@@ -7,7 +7,7 @@ use hyprland::{data::Devices, shared::HyprData};
 use crate::{
     root::Environment,
     services::{clients::KeyboardTrait, ProcessSettings, Service, ServiceError, ServiceNew},
-    util::signals::Signal,
+    util::signals::SignalNames,
 };
 
 /// Service that tracks current keyboard layout
@@ -52,6 +52,11 @@ impl Keyboard {
 impl Service for Keyboard {
     fn bind(&mut self, env: std::rc::Rc<crate::root::Environment>) -> Result<(), ServiceError> {
         self.env = Some(Rc::clone(&env));
+        env.signals
+            .borrow_mut()
+            .entry(SignalNames::Keyboard)
+            .or_default();
+
         Ok(())
     }
 
@@ -61,12 +66,10 @@ impl Service for Keyboard {
         }
 
         let mut signals = self.env.as_ref().unwrap().signals.borrow_mut();
-        if !signals.contains_key("keyboard") {
-            signals.insert("keyboard".to_string(), Signal::new());
-        }
+        signals.entry(SignalNames::Keyboard).or_default();
 
         *self.last_layout.borrow_mut() = Keyboard::get_main_keyboard()?.active_keymap;
-        signals["keyboard"].emit(&self.last_layout.clone());
+        signals[&SignalNames::Keyboard].emit(&self.last_layout.clone());
 
         Ok(())
     }
@@ -87,7 +90,7 @@ impl Service for Keyboard {
         let current_layout = Keyboard::get_main_keyboard()?.active_keymap;
         if *last_layout != current_layout {
             *last_layout = current_layout;
-            signals["keyboard"].emit(&last_layout.clone());
+            signals[&SignalNames::Keyboard].emit(&last_layout.clone());
         }
 
         Ok(())

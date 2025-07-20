@@ -28,14 +28,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::connect_to_env()?;
     let (globals, mut event_queue) = registry_queue_init(&conn)?;
 
-    let mut capybar = Root::new(&globals, &mut event_queue)?;
-
-    // Fonts can be replaces by your liking. The first font added will be used for normal text, the
-    // second for emoji
-    //capybar.add_font_by_name("mono")?;
-    capybar.add_font_by_name("jetbrainsmononerdfont")?;
-    capybar.add_font_by_name("jetbrainsmononerdfont")?;
-
     let mut bar = Bar::new(
         None,
         BarSettings {
@@ -104,9 +96,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
-    capybar.add_widget(bar)?;
+    let mut capybar = Root::new(&globals, &mut event_queue, Some(bar))?;
 
-    capybar.init(&mut event_queue)?.run(&mut event_queue)?;
+    // Fonts can be replaces by your liking. The first font added will be used for normal text, the
+    // second for emoji
+    //capybar.add_font_by_name("mono")?;
+    capybar.add_font_by_name("jetbrainsmononerdfont")?;
+    capybar.add_font_by_name("jetbrainsmononerdfont")?;
+
+    capybar.run(&mut event_queue)?;
 
     Ok(())
 }

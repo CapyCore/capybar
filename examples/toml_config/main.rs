@@ -8,10 +8,10 @@ fn main() -> Result<()> {
     let conn = Connection::connect_to_env()?;
     let (globals, mut event_queue) = registry_queue_init(&conn)?;
 
-    let mut capybar = Root::new(&globals, &mut event_queue)?;
+    let mut capybar = Root::new(&globals, &mut event_queue, None)?;
     capybar.apply_config(config)?;
 
-    capybar.init(&mut event_queue)?.run(&mut event_queue)?;
+    capybar.run(&mut event_queue)?;
 
     Ok(())
 }

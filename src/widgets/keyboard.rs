@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 use crate::{
     root::Environment,
+    util::signals::SignalNames,
     widgets::{text::Text, Widget},
 };
 
@@ -82,7 +83,7 @@ impl Widget for Keyboard {
 
         let signals = self.env.as_ref().unwrap().signals.borrow_mut();
 
-        if !signals.contains_key("keyboard") {
+        if !signals.contains_key(&SignalNames::Keyboard) {
             return Err(WidgetError::NoCorespondingSignal(
                 "Keyboard".to_string(),
                 "Keyboard".to_string(),
@@ -92,7 +93,7 @@ impl Widget for Keyboard {
         let signal_text = Rc::clone(&self.text);
         let layout_mappings = Rc::clone(&self.layout_mappings);
 
-        signals["keyboard"].connect(move |data| {
+        signals[&SignalNames::Keyboard].connect(move |data| {
             if let Some(text) = data.downcast_ref::<String>() {
                 let layout = if layout_mappings.contains_key(text) {
                     layout_mappings.get(text).unwrap()

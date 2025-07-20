@@ -34,7 +34,7 @@ type Callback = Box<dyn Fn(&dyn Any)>;
 /// let signal = Signal::new();
 /// let tracker = Rc::new(RefCell::new(0));
 ///
-/// // Connect callback that processes i32 values
+/// // Connect callback that servicees i32 values
 /// let track = Rc::clone(&tracker);
 /// signal.connect(move |data| {
 ///     if let Some(num) = data.downcast_ref::<i32>() {
@@ -172,4 +172,10 @@ impl Signal {
     pub fn get_last_value_cloned<T: Any + Clone>(&self) -> Option<T> {
         self.with_last_value(|opt| opt.and_then(|any| any.downcast_ref::<T>().cloned()))
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum SignalNames {
+    Keyboard,
+    Custom(String),
 }
