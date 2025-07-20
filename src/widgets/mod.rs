@@ -8,10 +8,15 @@ pub mod text;
 
 use std::{cell::RefCell, rc::Rc};
 
+use anyhow::Result;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{root::Environment, services::ProcessSettings, util::Color};
+use crate::{
+    root::Environment,
+    services::{ProcessSettings, ServiceNew},
+    util::Color,
+};
 
 use {battery::BatterySettings, clock::ClockSettings, cpu::CPUSettings, text::TextSettings};
 
@@ -55,10 +60,10 @@ pub enum WidgetError {
     #[error("Trying to initialise a widget \"{0}\" not bound to any environment")]
     InitWithNoEnv(String),
 
-    /// Arguments are a name of a widget and a name of coresponding process
+    /// Arguments are a name of a widget and a name of coresponding service
     #[error(
         "When initialising widget \"{0}\" no coresponding signal was found.
-        Maybe process \"{1}\" was not created?"
+        Maybe service \"{1}\" was not created?"
     )]
     NoCorespondingSignal(String, String),
 
@@ -144,4 +149,28 @@ pub enum WidgetsList {
     #[serde(rename = "cpu")]
     CPU(CPUSettings),
     Keyboard(keyboard::KeyboardSettings, ProcessSettings),
+}
+
+impl WidgetsList {
+    pub fn create_in_container(
+        &self,
+        container: &mut impl containers::ContainerSingle,
+    ) -> Result<(), WidgetError> {
+        match self {
+            WidgetsList::Text(settings) => {
+                container.create_widget(text::Text::new, settings.clone())
+            }
+            WidgetsList::Clock(settings) => {
+                container.create_widget(clock::Clock::new, settings.clone())
+            }
+            WidgetsList::Battery(settings) => {
+                container.create_widget(battery::Battery::new, settings.clone())
+            }
+            WidgetsList::CPU(settings) => container.create_widget(cpu::CPU::new, settings.clone()),
+            WidgetsList::Keyboard(wsettings, psettings) => {
+                container.create_service(crate::services::clients::Keyboard::new, *psettings)?;
+                container.create_widget(keyboard::Keyboard::new, wsettings.clone())
+            }
+        }
+    }
 }

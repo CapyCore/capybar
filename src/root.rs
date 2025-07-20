@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
@@ -39,15 +39,15 @@ use wayland_client::{
 
 use crate::{
     config::Config,
-    services::{clients, Service, ServiceError, ServiceNew},
+    services::{Service, ServiceError, ServiceNew},
     util::{
         fonts::{self, FontsError},
-        signals::Signal,
+        signals::{Signal, SignalNames},
         Drawer,
     },
     widgets::{
-        self, battery::Battery, clock::Clock, containers::bar::Bar, cpu::CPU, keyboard::Keyboard,
-        text::Text, Widget, WidgetError, WidgetNew, WidgetsList,
+        containers::{bar::Bar, Container},
+        Widget, WidgetNew,
     },
 };
 
@@ -55,7 +55,7 @@ use crate::{
 pub struct Environment {
     pub config: Config,
     pub drawer: RefCell<Drawer>,
-    pub signals: RefCell<HashMap<String, Signal>>,
+    pub signals: RefCell<HashMap<SignalNames, Signal>>,
 }
 
 #[derive(Error, Debug)]
@@ -81,7 +81,7 @@ pub struct Root {
     keyboard_focus: bool,
     pointer: Option<wl_pointer::WlPointer>,
 
-    widgets: Vec<Box<dyn Widget>>,
+    bar: Option<Bar>,
     services: Vec<Box<dyn Service>>,
     env: Option<Rc<Environment>>,
 }
@@ -182,6 +182,7 @@ impl LayerShellHandler for Root {
 
         if self.first_configure {
             self.first_configure = false;
+
             if let Err(a) = self.draw(qh) {
                 println!("{a}");
             }
@@ -341,7 +342,11 @@ impl ProvidesRegistryState for Root {
 }
 
 impl Root {
-    pub fn new(globals: &GlobalList, event_queue: &mut EventQueue<Root>) -> Result<Root> {
+    pub fn new(
+        globals: &GlobalList,
+        event_queue: &mut EventQueue<Root>,
+        bar: Option<Bar>,
+    ) -> Result<Root> {
         let qh = event_queue.handle();
 
         let compositor =
@@ -370,7 +375,7 @@ impl Root {
             keyboard_focus: false,
             pointer: None,
 
-            widgets: Vec::new(),
+            bar,
             services: Vec::new(),
             env: None,
         };
@@ -379,54 +384,32 @@ impl Root {
     }
 
     pub fn apply_config(&mut self, config: Config) -> Result<()> {
+        if self.bar.is_some() {
+            return Err(anyhow!("Config can only be applied once"));
+        }
         let mut bar = Bar::new(None, config.bar.settings)?;
 
         for widget in config.bar.left {
-            match widget {
-                WidgetsList::Text(settings) => bar.create_child_left(Text::new, settings)?,
-                WidgetsList::Clock(settings) => bar.create_child_left(Clock::new, settings)?,
-                WidgetsList::Battery(settings) => bar.create_child_left(Battery::new, settings)?,
-                WidgetsList::CPU(settings) => bar.create_child_left(CPU::new, settings)?,
-                WidgetsList::Keyboard(wsettings, psettings) => {
-                    self.create_process(clients::Keyboard::new, psettings)?;
-                    bar.create_child_left(Keyboard::new, wsettings)?
-                }
-            }
+            widget.create_in_container(bar.left().get_mut())?;
         }
 
         for widget in config.bar.center {
-            match widget {
-                WidgetsList::Text(settings) => bar.create_child_center(Text::new, settings)?,
-                WidgetsList::Clock(settings) => bar.create_child_center(Clock::new, settings)?,
-                WidgetsList::Battery(settings) => {
-                    bar.create_child_center(Battery::new, settings)?
-                }
-                WidgetsList::CPU(settings) => bar.create_child_center(CPU::new, settings)?,
-                WidgetsList::Keyboard(wsettings, psettings) => {
-                    self.create_process(clients::Keyboard::new, psettings)?;
-                    bar.create_child_center(widgets::keyboard::Keyboard::new, wsettings)?
-                }
-            }
+            widget.create_in_container(bar.center().get_mut())?;
         }
 
         for widget in config.bar.right {
-            match widget {
-                WidgetsList::Text(settings) => bar.create_child_right(Text::new, settings)?,
-                WidgetsList::Clock(settings) => bar.create_child_right(Clock::new, settings)?,
-                WidgetsList::Battery(settings) => bar.create_child_right(Battery::new, settings)?,
-                WidgetsList::CPU(settings) => bar.create_child_right(CPU::new, settings)?,
-                WidgetsList::Keyboard(wsettings, psettings) => {
-                    self.create_process(clients::Keyboard::new, psettings)?;
-                    bar.create_child_right(widgets::keyboard::Keyboard::new, wsettings)?
-                }
-            }
+            widget.create_in_container(bar.right().get_mut())?;
         }
 
-        self.add_widget(bar)?;
+        self.bar = Some(bar);
         Ok(())
     }
 
-    pub fn init(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
+    fn init(&mut self) -> Result<&mut Self> {
+        if self.bar.is_none() {
+            return Err(anyhow!("Empty bar can not be created"));
+        }
+
         self.layer.set_anchor(Anchor::TOP);
         self.layer
             .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
@@ -439,24 +422,17 @@ impl Root {
             signals: RefCell::new(HashMap::new()),
         }));
 
-        for process in &mut self.services {
-            process.bind(Rc::clone(self.env.as_ref().unwrap()))?;
+        for service in &mut self.services {
+            service.bind(Rc::clone(self.env.as_ref().unwrap()))?;
 
-            process.init()?;
+            service.init()?;
         }
 
-        for widget in &mut self.widgets {
-            widget.bind(Rc::clone(self.env.as_ref().unwrap()))?;
+        let bar = self.bar.as_mut().unwrap();
+        bar.bind(Rc::clone(self.env.as_ref().unwrap()))?;
+        bar.init()?;
 
-            widget.init()?;
-            let data = widget.data().borrow_mut();
-            self.height = max(
-                self.height,
-                (data.height + data.position.1).try_into().unwrap(),
-            );
-        }
-
-        event_queue.blocking_dispatch(self)?;
+        self.height = max(self.height, bar.data().borrow_mut().height as u32);
 
         for output in self.output_state().outputs() {
             let info = self
@@ -485,7 +461,8 @@ impl Root {
     }
 
     pub fn run(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
-        let _ = event_queue.blocking_dispatch(self);
+        event_queue.blocking_dispatch(self)?;
+        self.init()?;
 
         loop {
             event_queue.blocking_dispatch(self)?;
@@ -499,27 +476,7 @@ impl Root {
         fonts::add_font_by_name(name)
     }
 
-    pub fn add_widget<W>(&mut self, mut widget: W) -> Result<()>
-    where
-        W: Widget + 'static,
-    {
-        if let Some(env) = &self.env {
-            widget.bind(Rc::clone(env))?;
-        }
-        self.widgets.push(Box::new(widget));
-        Ok(())
-    }
-
-    pub fn create_widget<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
-    where
-        W: WidgetNew + Widget + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
-    {
-        self.widgets.push(Box::new(f(self.env.clone(), settings)?));
-        Ok(())
-    }
-
-    pub fn create_process<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    pub fn create_service<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: ServiceNew + Service + 'static,
         F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, ServiceError>,
@@ -533,17 +490,16 @@ impl Root {
             return Err(RootError::EnvironmentNotInit.into());
         }
 
-        for process in &mut self.services {
-            process.run()?;
+        for service in &mut self.services {
+            service.run()?;
         }
 
         self.layer
             .wl_surface()
             .damage_buffer(0, 0, self.width as i32, self.height as i32);
 
-        for widget in self.widgets.iter() {
-            widget.draw()?;
-        }
+        self.bar.as_ref().unwrap().run()?;
+        self.bar.as_ref().unwrap().draw()?;
 
         // Request our next frame
         self.layer
@@ -559,6 +515,10 @@ impl Root {
 
         self.flag = false;
         Ok(())
+    }
+
+    pub fn bar(&self) -> &Option<Bar> {
+        &self.bar
     }
 }
 

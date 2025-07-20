@@ -1,4 +1,4 @@
-//! Current module describes all of capybars included processes as well as their common behaviour.
+//! Current module describes all of capybars included servicees as well as their common behaviour.
 //!
 //! Process can be treated as a backend component.
 //! To communicate with frontend you can use [Signal](crate::util::signals::Signal)
@@ -37,7 +37,7 @@ pub trait Service {
 /// A [Service] that can be unifiedly created.
 ///
 /// Implementing this trait allows creating [Service] and binding the environment without
-/// intermidiate steps. Simplifies process creation inside of scripts.
+/// intermidiate steps. Simplifies service creation inside of scripts.
 pub trait ServiceNew {
     type Settings;
 

@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 use crate::{
     root::Environment,
+    services::Service,
     widgets::{Style, Widget, WidgetData, WidgetError, WidgetNew},
 };
 
@@ -47,46 +48,121 @@ pub struct Bar {
     left: RefCell<Row>,
     center: RefCell<Row>,
     right: RefCell<Row>,
+    services: RefCell<Vec<Box<dyn Service>>>,
 }
 
 impl Bar {
     pub fn add_center(&self, widget: Box<dyn Widget>) -> Result<()> {
-        self.center.borrow_mut().add_child(widget)?;
+        self.center.borrow_mut().add_widget(widget);
 
         Ok(())
     }
 
-    pub fn create_child_left<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    pub fn create_widget_left<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
         F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.left
             .borrow_mut()
-            .add_child(Box::new(f(self.env.clone(), settings)?))?;
+            .add_widget(Box::new(f(self.env.clone(), settings)?));
         Ok(())
     }
 
-    pub fn create_child_center<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    pub fn create_widget_center<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
         F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.center
             .borrow_mut()
-            .add_child(Box::new(f(self.env.clone(), settings)?))?;
+            .add_widget(Box::new(f(self.env.clone(), settings)?));
         Ok(())
     }
 
-    pub fn create_child_right<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    pub fn create_widget_right<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
     where
         W: WidgetNew + Widget + 'static,
         F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
     {
         self.right
             .borrow_mut()
-            .add_child(Box::new(f(self.env.clone(), settings)?))?;
+            .add_widget(Box::new(f(self.env.clone(), settings)?));
         Ok(())
+    }
+
+    pub fn left(&mut self) -> &mut RefCell<Row> {
+        &mut self.left
+    }
+
+    pub fn center(&mut self) -> &mut RefCell<Row> {
+        &mut self.center
+    }
+
+    pub fn right(&mut self) -> &mut RefCell<Row> {
+        &mut self.right
+    }
+
+    fn align_widgets(&self) -> anyhow::Result<()> {
+        let data = self.data.borrow();
+        let border = match self.settings.style.border {
+            Some(a) => (a.0, Some(a.1)),
+            None => (0, None),
+        };
+
+        let left = self.left.borrow_mut();
+        let mut ld = left.data().borrow_mut();
+
+        ld.position.0 = data.position.0 + border.0;
+        ld.position.1 = data.position.1 + border.0;
+
+        let center = self.center.borrow_mut();
+        let mut cd = center.data().borrow_mut();
+
+        cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
+        cd.position.1 = data.position.1 + border.0;
+
+        let right = self.right.borrow_mut();
+        let mut rd = right.data().borrow_mut();
+
+        rd.position.0 = data.position.0 + data.width - border.0;
+        rd.position.1 = data.position.1 + border.0;
+
+        Ok(())
+    }
+
+    pub fn draw_border(&self) {
+        let data = self.data.borrow_mut();
+
+        let border = match self.settings.style.border {
+            Some(a) => (a.0, Some(a.1)),
+            None => (0, None),
+        };
+
+        let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
+        if let Some(color) = self.settings.style.background {
+            for x in border.0..data.width - border.0 {
+                for y in border.0..data.height - border.0 {
+                    drawer.draw_pixel(&data, (x, y), color);
+                }
+            }
+        }
+
+        if let Some(color) = border.1 {
+            for x in 0..border.0 {
+                for y in 0..data.height {
+                    drawer.draw_pixel(&data, (x, y), color);
+                    drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
+                }
+            }
+
+            for x in 0..data.width {
+                for y in 0..border.0 {
+                    drawer.draw_pixel(&data, (x, y), color);
+                    drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
+                }
+            }
+        }
     }
 }
 
@@ -98,6 +174,12 @@ impl Widget for Bar {
         self.left.borrow_mut().bind(Rc::clone(&env))?;
         self.center.borrow_mut().bind(Rc::clone(&env))?;
         self.right.borrow_mut().bind(Rc::clone(&env))?;
+
+        for service in self.services.borrow_mut().iter_mut() {
+            if let Err(e) = service.bind(Rc::clone(&env)) {
+                return Err(WidgetError::Custom(e.into()));
+            }
+        }
         self.env = Some(env);
         Ok(())
     }
@@ -107,66 +189,12 @@ impl Widget for Bar {
             return Err(WidgetError::DrawWithNoEnv("Bar".to_string()));
         }
 
-        let data = self.data.borrow_mut();
+        self.draw_border();
 
-        let border = match self.settings.style.border {
-            Some(a) => (a.0, Some(a.1)),
-            None => (0, None),
-        };
-
-        {
-            let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
-            if let Some(color) = self.settings.style.background {
-                for x in border.0..data.width - border.0 {
-                    for y in border.0..data.height - border.0 {
-                        drawer.draw_pixel(&data, (x, y), color);
-                    }
-                }
-            }
-
-            if let Some(color) = border.1 {
-                for x in 0..border.0 {
-                    for y in 0..data.height {
-                        drawer.draw_pixel(&data, (x, y), color);
-                        drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
-                    }
-                }
-
-                for x in 0..data.width {
-                    for y in 0..border.0 {
-                        drawer.draw_pixel(&data, (x, y), color);
-                        drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
-                    }
-                }
-            }
-        }
-
-        let left = self.left.borrow_mut();
-        {
-            let mut ld = left.data().borrow_mut();
-
-            ld.position.0 = data.position.0 + border.0;
-            ld.position.1 = data.position.1 + border.0;
-        }
-        left.draw()?;
-
-        let center = self.center.borrow_mut();
-        {
-            let mut cd = center.data().borrow_mut();
-
-            cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
-            cd.position.1 = data.position.1 + border.0;
-        }
-        center.draw()?;
-
-        let right = self.right.borrow_mut();
-        {
-            let mut rd = right.data().borrow_mut();
-
-            rd.position.0 = data.position.0 + data.width - border.0;
-            rd.position.1 = data.position.1 + border.0;
-        }
-        right.draw()?;
+        self.align_widgets()?;
+        self.left.borrow_mut().draw()?;
+        self.center.borrow_mut().draw()?;
+        self.right.borrow_mut().draw()?;
 
         Ok(())
     }
@@ -239,6 +267,7 @@ impl WidgetNew for Bar {
                     ..RowSettings::default()
                 },
             )?),
+            services: RefCell::new(Vec::new()),
 
             settings,
             env,
@@ -247,15 +276,24 @@ impl WidgetNew for Bar {
 }
 
 impl Container for Bar {
-    fn align_children(&self) -> anyhow::Result<()> {
-        todo!();
+    fn create_service<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    where
+        W: crate::services::ServiceNew + crate::services::Service + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, crate::services::ServiceError>,
+    {
+        self.services
+            .borrow_mut()
+            .push(Box::new(f(self.env.clone(), settings)?));
+        Ok(())
     }
 
-    fn children(&self) -> &super::WidgetVec {
-        todo!();
-    }
-
-    fn children_mut(&mut self) -> &super::WidgetVec {
-        todo!();
+    fn run(&self) -> Result<()> {
+        for service in self.services.borrow_mut().iter() {
+            service.run()?;
+        }
+        self.left.borrow().run()?;
+        self.center.borrow().run()?;
+        self.right.borrow().run()?;
+        Ok(())
     }
 }

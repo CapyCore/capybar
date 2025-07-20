@@ -5,11 +5,12 @@ use thiserror::Error;
 
 use crate::{
     root::Environment,
+    services::Service,
     util::Color,
     widgets::{Widget, WidgetData, WidgetError, WidgetNew},
 };
 
-use super::{Container, WidgetVec};
+use super::{Container, ContainerSingle};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Alignment {
@@ -43,7 +44,7 @@ pub struct RowSettings {
 
 #[derive(Error, Debug)]
 pub enum RowError {
-    #[error("Row is not wide enough to display all of it's children")]
+    #[error("Row is not wide enough to display all of it's widgets")]
     WidthOverflow,
 
     #[error("anyhow error: {0}")]
@@ -55,18 +56,24 @@ pub struct Row {
     settings: RowSettings,
     data: RefCell<WidgetData>,
 
-    children: RefCell<WidgetVec>,
+    widgets: RefCell<Vec<Box<dyn Widget>>>,
     env: Option<Rc<Environment>>,
+    services: RefCell<Vec<Box<dyn Service>>>,
 }
 
 impl Widget for Row {
     fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(Rc::clone(&env));
-        let mut children = self.children.borrow_mut();
 
-        let children = children.widgets_mut();
-        for child in children {
-            child.bind(Rc::clone(&env))?;
+        let mut widgets = self.widgets.borrow_mut();
+        for widget in widgets.iter_mut() {
+            widget.bind(Rc::clone(&env))?;
+        }
+
+        for service in self.services.borrow_mut().iter_mut() {
+            if let Err(e) = service.bind(Rc::clone(&env)) {
+                return Err(WidgetError::Custom(e.into()));
+            }
         }
 
         Ok(())
@@ -74,19 +81,18 @@ impl Widget for Row {
 
     fn init(&self) -> Result<(), WidgetError> {
         let mut data = self.data.borrow_mut();
-        let mut children = self.children.borrow_mut();
         let border = match self.settings.border {
             Some(a) => a.0,
             None => 0,
         };
 
-        let children = children.widgets_mut();
-        for child in children {
-            child.init()?;
-            let child_data = child.data().borrow_mut();
+        let widgets = self.widgets.borrow();
+        for widget in widgets.iter() {
+            widget.init()?;
+            let widget_data = widget.data().borrow_mut();
             data.height = usize::max(
                 data.height,
-                child_data.height + child_data.position.1 + child_data.margin.3 + border,
+                widget_data.height + widget_data.position.1 + widget_data.margin.3 + border,
             );
         }
         Ok(())
@@ -97,12 +103,12 @@ impl Widget for Row {
             return Err(WidgetError::DrawWithNoEnv("Row".to_string()));
         }
 
-        self.align_children()?;
+        self.align_widgets()?;
 
-        let children = self.children.borrow_mut();
+        let widgets = self.widgets.borrow_mut();
         let mut data = self.data.borrow_mut();
 
-        if children.is_empty() {
+        if widgets.is_empty() {
             data.height = self.settings.border.unwrap_or((5, Color::NONE)).0 * 3;
         }
 
@@ -138,7 +144,7 @@ impl Widget for Row {
             }
         }
 
-        for widget in children.widgets() {
+        for widget in widgets.iter() {
             widget.draw()?;
         }
 
@@ -151,51 +157,39 @@ impl Widget for Row {
 }
 
 impl Row {
-    pub fn children_mut(&mut self) -> &mut Vec<Box<dyn Widget>> {
-        self.children.get_mut().widgets_mut()
+    pub fn widgets_mut(&mut self) -> &mut Vec<Box<dyn Widget>> {
+        self.widgets.get_mut()
     }
 
     pub fn len(&self) -> usize {
-        self.children.borrow().widgets().len()
+        self.widgets.borrow().len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.children.borrow().widgets().is_empty()
+        self.widgets.borrow().is_empty()
     }
 
     pub fn pop(&mut self) {
-        self.children.get_mut().widgets_mut().pop();
+        self.widgets.get_mut().pop();
     }
 
-    pub fn add_child(&mut self, child: Box<dyn Widget>) -> Result<(), RowError> {
-        self.children.get_mut().widgets_mut().push(child);
-
-        Ok(())
+    pub fn add_widget(&mut self, widget: Box<dyn Widget>) {
+        self.widgets.get_mut().push(widget);
     }
 
-    pub fn create_child<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
-    where
-        W: WidgetNew + Widget + 'static,
-        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W>,
-    {
-        self.add_child(Box::new(f(self.env.clone(), settings)?))?;
-        Ok(())
-    }
-
-    fn get_max_height(children: &mut Vec<Box<dyn Widget>>) -> usize {
-        if children.is_empty() {
+    fn get_max_height(widgets: &mut Vec<Box<dyn Widget>>) -> usize {
+        if widgets.is_empty() {
             return 0;
         }
 
         let mut res = 0;
-        for child in children.iter_mut().map(|a| a.data().borrow_mut()) {
-            res = usize::max(res, child.height + child.position.1 + child.margin.3);
+        for widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
+            res = usize::max(res, widget.height + widget.position.1 + widget.margin.3);
         }
         res
     }
 
-    fn align_children_centered_horizontal(&self) -> Result<(), RowError> {
-        let mut children = self.children.borrow_mut();
+    fn align_widgets_centered_horizontal(&self) -> Result<(), RowError> {
         let mut data = self.data.borrow_mut();
 
         let border = match self.settings.border {
@@ -203,25 +197,24 @@ impl Row {
             None => 0,
         };
 
-        children.is_aligned = true;
-        let children = children.widgets_mut();
+        let mut widgets = self.widgets.borrow_mut();
 
-        if children.len() == 1 {
+        if widgets.len() == 1 {
             {
-                let mut child = children[0].data().borrow_mut();
+                let mut widget = widgets[0].data().borrow_mut();
 
-                child.position.0 = data.position.0 + (data.width - border * 2 - child.width) / 2;
-                child.position.1 = data.position.1 + border + child.margin.2;
+                widget.position.0 = data.position.0 + (data.width - border * 2 - widget.width) / 2;
+                widget.position.1 = data.position.1 + border + widget.margin.2;
             }
 
-            data.height = Row::get_max_height(children) + border;
+            data.height = Row::get_max_height(&mut widgets) + border;
             return Ok(());
         }
 
         let mut total_width = 0;
-        for child in children.iter_mut() {
+        for widget in widgets.iter_mut() {
             total_width += {
-                let data = child.data().borrow_mut();
+                let data = widget.data().borrow_mut();
                 data.width + data.margin.0 + data.margin.1
             }
         }
@@ -230,48 +223,44 @@ impl Row {
             return Err(RowError::WidthOverflow);
         }
 
-        let dist = (data.width - 2 * border - total_width) / (children.len() - 1);
+        let dist = (data.width - 2 * border - total_width) / (widgets.len() - 1);
         let mut x = data.position.0 + border;
 
-        for child in children.iter_mut() {
-            let mut child = child.data().borrow_mut();
+        for widget in widgets.iter_mut() {
+            let mut widget = widget.data().borrow_mut();
 
-            child.position.0 = x + child.margin.0;
-            child.position.1 = data.position.1 + child.margin.2;
+            widget.position.0 = x + widget.margin.0;
+            widget.position.1 = data.position.1 + widget.margin.2;
 
-            x += child.margin.0 + child.width + child.margin.1 + dist;
+            x += widget.margin.0 + widget.width + widget.margin.1 + dist;
         }
 
-        data.height = Row::get_max_height(children) + border;
+        data.height = Row::get_max_height(&mut widgets) + border;
 
         Ok(())
     }
 
-    fn align_children_growth_ch(&self, padding: usize) -> Result<()> {
+    fn align_widgets_growth_ch(&self, padding: usize) -> Result<()> {
         {
-            let mut children = self.children.borrow_mut();
+            let mut widgets = self.widgets.borrow_mut();
             let mut data = self.data.borrow_mut();
 
             data.width = 0;
 
-            for child in children
-                .widgets_mut()
-                .iter_mut()
-                .map(|a| a.data().borrow_mut())
-            {
-                data.width += child.margin.0 + child.width + child.margin.1 + padding;
+            for widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
+                data.width += widget.margin.0 + widget.width + widget.margin.1 + padding;
             }
 
             data.width -= padding;
         }
 
-        self.align_children_centered_horizontal()?;
+        self.align_widgets_centered_horizontal()?;
 
         Ok(())
     }
 
-    fn align_children_growth_hr(&self, padding: usize) -> Result<()> {
-        let mut children = self.children.borrow_mut();
+    fn align_widgets_growth_hr(&self, padding: usize) -> Result<()> {
+        let mut widgets = self.widgets.borrow_mut();
         let mut data = self.data.borrow_mut();
 
         let border = match self.settings.border {
@@ -279,14 +268,11 @@ impl Row {
             None => 0,
         };
 
-        children.is_aligned = true;
-        let children = children.widgets_mut();
-
         let mut offset = border + data.position.0;
-        for mut child in children.iter_mut().map(|a| a.data().borrow_mut()) {
-            child.position.1 = data.position.1 + child.margin.2;
-            child.position.0 = offset + child.margin.0;
-            offset += child.margin.0 + child.width + child.margin.1 + padding;
+        for mut widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
+            widget.position.1 = data.position.1 + widget.margin.2;
+            widget.position.0 = offset + widget.margin.0;
+            offset += widget.margin.0 + widget.width + widget.margin.1 + padding;
         }
 
         data.width = offset - padding + border;
@@ -294,8 +280,8 @@ impl Row {
         Ok(())
     }
 
-    fn align_children_growth_hl(&self, padding: usize) -> Result<()> {
-        let mut children = self.children.borrow_mut();
+    fn align_widgets_growth_hl(&self, padding: usize) -> Result<()> {
+        let mut widgets = self.widgets.borrow_mut();
         let mut data = self.data.borrow_mut();
 
         let border = match self.settings.border {
@@ -303,16 +289,37 @@ impl Row {
             None => 0,
         };
 
-        let children = children.widgets_mut();
-
         let mut offset = data.position.0 - border;
-        for mut child in children.iter_mut().map(|a| a.data().borrow_mut()) {
-            child.position.1 = data.position.1 + child.margin.2;
-            child.position.0 = offset - child.width - child.margin.1;
-            offset -= child.margin.0 + child.width + child.margin.1 + padding;
+        for mut widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
+            widget.position.1 = data.position.1 + widget.margin.2;
+            widget.position.0 = offset - widget.width - widget.margin.1;
+            offset -= widget.margin.0 + widget.width + widget.margin.1 + padding;
         }
 
         data.width = data.position.0 - (offset - padding + border);
+
+        Ok(())
+    }
+
+    fn align_widgets(&self) -> Result<()> {
+        if self.widgets.borrow_mut().is_empty() {
+            return Ok(());
+        }
+
+        match self.settings.alignment {
+            Alignment::CenteringHorizontal => self.align_widgets_centered_horizontal()?,
+            Alignment::CenteringVertical => todo!(),
+            Alignment::GrowthCenteringHorizontalRight(padding) => {
+                self.align_widgets_growth_ch(padding)?
+            }
+            Alignment::GrowthCenteringHorizontalLeft(_) => todo!(),
+            Alignment::GrowthCenteringVerticalRight(_) => todo!(),
+            Alignment::GrowthCenteringVerticalLeft(_) => todo!(),
+            Alignment::GrowthHorizontalRight(padding) => self.align_widgets_growth_hr(padding)?,
+            Alignment::GrowthHorizontalLeft(padding) => self.align_widgets_growth_hl(padding)?,
+            Alignment::GrowthVerticalUp(_) => todo!(),
+            Alignment::GrowthVerticalDown(_) => todo!(),
+        };
 
         Ok(())
     }
@@ -328,40 +335,41 @@ impl WidgetNew for Row {
             data: RefCell::new(settings.default_data),
             settings,
             env,
-            children: RefCell::new(WidgetVec::new()),
+            widgets: RefCell::new(Vec::new()),
+            services: RefCell::new(Vec::new()),
         })
     }
 }
 
 impl Container for Row {
-    fn align_children(&self) -> Result<()> {
-        if self.children.borrow_mut().is_empty() {
-            return Ok(());
-        }
-
-        match self.settings.alignment {
-            Alignment::CenteringHorizontal => self.align_children_centered_horizontal()?,
-            Alignment::CenteringVertical => todo!(),
-            Alignment::GrowthCenteringHorizontalRight(padding) => {
-                self.align_children_growth_ch(padding)?
-            }
-            Alignment::GrowthCenteringHorizontalLeft(_) => todo!(),
-            Alignment::GrowthCenteringVerticalRight(_) => todo!(),
-            Alignment::GrowthCenteringVerticalLeft(_) => todo!(),
-            Alignment::GrowthHorizontalRight(padding) => self.align_children_growth_hr(padding)?,
-            Alignment::GrowthHorizontalLeft(padding) => self.align_children_growth_hl(padding)?,
-            Alignment::GrowthVerticalUp(_) => todo!(),
-            Alignment::GrowthVerticalDown(_) => todo!(),
-        };
-
+    fn create_service<W, F>(&mut self, f: F, settings: W::Settings) -> Result<()>
+    where
+        W: crate::services::ServiceNew + crate::services::Service + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, crate::services::ServiceError>,
+    {
+        self.services
+            .borrow_mut()
+            .push(Box::new(f(self.env.clone(), settings)?));
         Ok(())
     }
 
-    fn children(&self) -> &WidgetVec {
-        todo!();
-    }
+    fn run(&self) -> Result<()> {
+        for service in self.services.borrow_mut().iter() {
+            service.run()?;
+        }
 
-    fn children_mut(&mut self) -> &WidgetVec {
-        todo!();
+        Ok(())
+    }
+}
+
+impl ContainerSingle for Row {
+    fn create_widget<W, F>(&mut self, f: F, settings: W::Settings) -> Result<(), WidgetError>
+    where
+        W: WidgetNew + Widget + 'static,
+        F: FnOnce(Option<Rc<Environment>>, W::Settings) -> Result<W, WidgetError>,
+    {
+        self.add_widget(Box::new(f(self.env.clone(), settings)?));
+
+        Ok(())
     }
 }
