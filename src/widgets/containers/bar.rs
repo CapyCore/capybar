@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    rc::Rc,
+};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -6,7 +9,7 @@ use serde::Deserialize;
 use crate::{
     root::Environment,
     services::Service,
-    widgets::{Style, Widget, WidgetData, WidgetError, WidgetNew},
+    widgets::{Style, Widget, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled},
 };
 
 use super::{
@@ -25,6 +28,15 @@ pub struct BarSettings {
     #[serde(default)]
     pub padding: (usize, usize, usize),
 
+    #[serde(default)]
+    pub left_settings: RowSettings,
+
+    #[serde(default)]
+    pub center_settings: RowSettings,
+
+    #[serde(default)]
+    pub right_settings: RowSettings,
+
     #[serde(flatten)]
     pub style: Style,
 }
@@ -34,6 +46,9 @@ impl BarSettings {
         Self {
             default_data: WidgetData::default(),
             padding: (10, 10, 10),
+            left_settings: RowSettings::default(),
+            center_settings: RowSettings::default(),
+            right_settings: RowSettings::default(),
             style: Style::default(),
         }
     }
@@ -104,69 +119,53 @@ impl Bar {
     }
 
     fn align_widgets(&self) -> anyhow::Result<()> {
-        let data = self.data.borrow();
+        let mut data = self.data.borrow_mut();
         let border = match self.settings.style.border {
             Some(a) => (a.0, Some(a.1)),
             None => (0, None),
         };
 
         let left = self.left.borrow_mut();
-        let mut ld = left.data().borrow_mut();
+        let mut ld = left.data_mut();
 
         ld.position.0 = data.position.0 + border.0;
         ld.position.1 = data.position.1 + border.0;
 
         let center = self.center.borrow_mut();
-        let mut cd = center.data().borrow_mut();
+        let mut cd = center.data_mut();
 
         cd.position.0 = data.position.0 + (data.width - cd.width) / 2;
         cd.position.1 = data.position.1 + border.0;
 
         let right = self.right.borrow_mut();
-        let mut rd = right.data().borrow_mut();
+        let mut rd = right.data_mut();
 
         rd.position.0 = data.position.0 + data.width - border.0;
         rd.position.1 = data.position.1 + border.0;
 
+        data.height = ld.height.max(cd.height).max(rd.height);
+
         Ok(())
-    }
-
-    pub fn draw_border(&self) {
-        let data = self.data.borrow_mut();
-
-        let border = match self.settings.style.border {
-            Some(a) => (a.0, Some(a.1)),
-            None => (0, None),
-        };
-
-        let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
-        if let Some(color) = self.settings.style.background {
-            for x in border.0..data.width - border.0 {
-                for y in border.0..data.height - border.0 {
-                    drawer.draw_pixel(&data, (x, y), color);
-                }
-            }
-        }
-
-        if let Some(color) = border.1 {
-            for x in 0..border.0 {
-                for y in 0..data.height {
-                    drawer.draw_pixel(&data, (x, y), color);
-                    drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
-                }
-            }
-
-            for x in 0..data.width {
-                for y in 0..border.0 {
-                    drawer.draw_pixel(&data, (x, y), color);
-                    drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
-                }
-            }
-        }
     }
 }
 
 impl Widget for Bar {
+    fn name(&self) -> WidgetList {
+        WidgetList::Bar
+    }
+
+    fn as_styled(&self) -> Option<&dyn WidgetStyled> {
+        Some(self)
+    }
+
+    fn data(&self) -> Ref<'_, WidgetData> {
+        self.data.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, WidgetData> {
+        self.data.borrow_mut()
+    }
+
     fn bind(
         &mut self,
         env: std::rc::Rc<crate::root::Environment>,
@@ -184,14 +183,28 @@ impl Widget for Bar {
         Ok(())
     }
 
-    fn draw(&self) -> anyhow::Result<(), WidgetError> {
-        if self.env.is_none() {
-            return Err(WidgetError::DrawWithNoEnv("Bar".to_string()));
-        }
+    fn env(&self) -> Option<Rc<Environment>> {
+        self.env.clone()
+    }
 
-        self.draw_border();
+    fn prepare(&self) -> Result<(), WidgetError> {
+        self.left.borrow().prepare()?;
+        self.center.borrow().prepare()?;
+        self.right.borrow().prepare()?;
 
         self.align_widgets()?;
+        self.apply_style()?;
+
+        Ok(())
+    }
+
+    fn draw(&self) -> anyhow::Result<(), WidgetError> {
+        if self.env.is_none() {
+            return Err(WidgetError::DrawWithNoEnv(WidgetList::Bar));
+        }
+
+        self.draw_style()?;
+
         self.left.borrow_mut().draw()?;
         self.center.borrow_mut().draw()?;
         self.right.borrow_mut().draw()?;
@@ -206,17 +219,18 @@ impl Widget for Bar {
         left.init()?;
         center.init()?;
         right.init()?;
+        right.data_mut().position.0 = self.data().width;
 
         let border = match self.settings.style.border {
             Some(a) => (a.0, Some(a.1)),
             None => (0, None),
         };
 
-        let mut data = self.data.borrow_mut();
+        let mut data = self.data_mut();
         data.height = *[
-            left.data().borrow_mut().height,
-            center.data().borrow_mut().height,
-            right.data().borrow_mut().height,
+            left.data_mut().height,
+            center.data_mut().height,
+            right.data_mut().height,
         ]
         .iter()
         .max_by(|a, b| a.cmp(b))
@@ -224,10 +238,6 @@ impl Widget for Bar {
             + 2 * border.0;
 
         Ok(())
-    }
-
-    fn data(&self) -> &RefCell<WidgetData> {
-        &self.data
     }
 }
 
@@ -248,7 +258,7 @@ impl WidgetNew for Bar {
                 env.clone(),
                 RowSettings {
                     alignment: Alignment::GrowthHorizontalRight(settings.padding.0),
-                    ..RowSettings::default()
+                    ..settings.left_settings
                 },
             )?),
 
@@ -256,7 +266,7 @@ impl WidgetNew for Bar {
                 env.clone(),
                 RowSettings {
                     alignment: Alignment::GrowthCenteringHorizontalRight(settings.padding.1),
-                    ..RowSettings::default()
+                    ..settings.center_settings
                 },
             )?),
 
@@ -264,7 +274,7 @@ impl WidgetNew for Bar {
                 env.clone(),
                 RowSettings {
                     alignment: Alignment::GrowthHorizontalLeft(settings.padding.2),
-                    ..RowSettings::default()
+                    ..settings.right_settings
                 },
             )?),
             services: RefCell::new(Vec::new()),
@@ -272,6 +282,12 @@ impl WidgetNew for Bar {
             settings,
             env,
         })
+    }
+}
+
+impl WidgetStyled for Bar {
+    fn style(&self) -> &Style {
+        &self.settings.style
     }
 }
 

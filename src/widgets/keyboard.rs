@@ -1,15 +1,21 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use anyhow::Result;
 use serde::Deserialize;
 
 use crate::{
-    root::Environment,
-    util::signals::SignalNames,
-    widgets::{text::Text, Widget},
+    root::Environment, services::ServiceList, util::signals::SignalNames, widgets::Widget,
 };
 
-use super::{text::TextSettings, Style, WidgetData, WidgetError, WidgetNew};
+use super::{
+    icon_text::{IconText, IconTextSettings},
+    text::TextSettings,
+    Style, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled,
+};
 
 /// Settings of a [Keyboard] widget
 #[derive(Deserialize, Default, Debug, Clone)]
@@ -32,65 +38,57 @@ pub struct KeyboardSettings {
 /// Widget displaying current keyboard layout.
 pub struct Keyboard {
     data: RefCell<WidgetData>,
+    style: Style,
+    is_ready: RefCell<bool>,
+
     layout_mappings: Rc<HashMap<String, String>>,
 
-    icon: RefCell<Text>,
-    text: Rc<RefCell<Text>>,
+    icon_text: Rc<RefCell<IconText>>,
 
     env: Option<Rc<Environment>>,
 }
 
-impl Keyboard {
-    fn align(&self) {
-        let icon = self.icon.borrow_mut();
-        let text = self.text.borrow_mut();
-
-        let mut icon_data = icon.data().borrow_mut();
-        let mut text_data = text.data().borrow_mut();
-        let data = &mut self.data.borrow_mut();
-
-        icon_data.position.0 = data.position.0 + icon_data.margin.0;
-        icon_data.position.1 = data.position.1 + icon_data.margin.2;
-        text_data.position.0 =
-            icon_data.position.0 + icon_data.width + icon_data.margin.1 + text_data.margin.0;
-        text_data.position.1 = data.position.1 + text_data.margin.2;
-
-        data.height = usize::max(
-            text_data.position.1 + text_data.height + text_data.margin.3,
-            icon_data.position.1 + icon_data.height + icon_data.margin.3,
-        );
-
-        data.width = icon_data.margin.0
-            + icon_data.margin.1
-            + icon_data.width
-            + text_data.margin.0
-            + text_data.margin.1
-            + text_data.width;
-    }
-}
-
 impl Widget for Keyboard {
+    fn name(&self) -> WidgetList {
+        WidgetList::Keyboard
+    }
+
+    fn as_styled(&self) -> Option<&dyn WidgetStyled> {
+        Some(self)
+    }
+
+    fn data(&self) -> Ref<'_, WidgetData> {
+        self.data.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, WidgetData> {
+        self.data.borrow_mut()
+    }
+
     fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(env.clone());
-        self.text.borrow_mut().bind(env.clone())?;
-        self.icon.borrow_mut().bind(env)
+        self.icon_text.borrow_mut().bind(env)
+    }
+
+    fn env(&self) -> Option<Rc<Environment>> {
+        self.env.clone()
     }
 
     fn init(&self) -> Result<(), WidgetError> {
         if self.env.is_none() {
-            return Err(WidgetError::InitWithNoEnv("Keyboard".to_string()));
+            return Err(WidgetError::InitWithNoEnv(WidgetList::Keyboard));
         }
 
         let signals = self.env.as_ref().unwrap().signals.borrow_mut();
 
         if !signals.contains_key(&SignalNames::Keyboard) {
             return Err(WidgetError::NoCorespondingSignal(
-                "Keyboard".to_string(),
-                "Keyboard".to_string(),
+                WidgetList::Keyboard,
+                ServiceList::Keyboard,
             ));
         }
 
-        let signal_text = Rc::clone(&self.text);
+        let signal_ic = Rc::clone(&self.icon_text);
         let layout_mappings = Rc::clone(&self.layout_mappings);
 
         signals[&SignalNames::Keyboard].connect(move |data| {
@@ -101,27 +99,53 @@ impl Widget for Keyboard {
                     &text.to_string()
                 };
 
-                signal_text.borrow_mut().change_text(layout);
+                signal_ic.borrow_mut().change_text(layout);
             }
         });
 
-        self.icon.borrow_mut().init()?;
-        self.text.borrow_mut().init()?;
-
-        self.align();
+        {
+            let mut ic = self.icon_text.borrow_mut();
+            ic.change_icon("󰌌");
+            ic.change_text("ERR");
+            ic.init()?;
+        }
 
         Ok(())
     }
 
-    fn draw(&self) -> Result<(), WidgetError> {
-        self.align();
+    fn prepare(&self) -> Result<(), WidgetError> {
+        {
+            let it = self.icon_text.borrow();
+            it.prepare()?;
+            let mut it_data = it.data_mut();
+            let mut self_data = self.data.borrow_mut();
+            it_data.position = self_data.position;
+            self_data.width = it_data.width;
+            self_data.height = it_data.height;
+        }
 
-        self.text.borrow_mut().draw()?;
-        self.icon.borrow_mut().draw()
+        self.apply_style()?;
+
+        *self.is_ready.borrow_mut() = true;
+        Ok(())
     }
 
-    fn data(&self) -> &RefCell<WidgetData> {
-        &self.data
+    fn draw(&self) -> Result<(), WidgetError> {
+        if self.env.is_none() {
+            return Err(WidgetError::DrawWithNoEnv(WidgetList::Keyboard));
+        }
+
+        if !*self.is_ready.borrow() {
+            self.prepare()?;
+        }
+
+        self.draw_style()?;
+
+        {
+            let ic_data = self.icon_text.borrow();
+            ic_data.data_mut().position = self.data().position;
+        }
+        self.icon_text.borrow_mut().draw()
     }
 }
 
@@ -134,34 +158,27 @@ impl WidgetNew for Keyboard {
     {
         Ok(Keyboard {
             data: RefCell::new(settings.default_data),
+            style: settings.style,
+            is_ready: RefCell::new(false),
+
             layout_mappings: Rc::new(settings.layout_mappings),
 
-            icon: RefCell::new(Text::new(
+            icon_text: Rc::new(RefCell::new(IconText::new(
                 env.clone(),
-                TextSettings {
-                    text: "󰌌".to_string(),
-                    default_data: WidgetData {
-                        margin: (0, 0, 0, 0),
-                        ..WidgetData::default()
-                    },
-                    fontid: 1,
-                    ..settings.text_settings.clone()
-                },
-            )?),
-            text: Rc::new(RefCell::new(Text::new(
-                env,
-                TextSettings {
-                    text: String::new(),
-
-                    default_data: WidgetData {
-                        margin: (5, 0, 2, 0),
-                        ..WidgetData::default()
-                    },
-                    ..settings.text_settings.clone()
+                IconTextSettings {
+                    icon_settings: settings.text_settings.clone(),
+                    text_settings: settings.text_settings.clone(),
+                    ..IconTextSettings::default()
                 },
             )?)),
 
             env: None,
         })
+    }
+}
+
+impl WidgetStyled for Keyboard {
+    fn style(&self) -> &Style {
+        &self.style
     }
 }
