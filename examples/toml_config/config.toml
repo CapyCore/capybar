@@ -15,7 +15,7 @@
     [bar.settings.left_settings]
         margin = [3,0,3,3]
     [bar.settings.right_settings]
-        margin = [0,4,3,3]
+        margin = [0,6,3,3]
 
 [[bar.left]]
     widget = "keyboard"
