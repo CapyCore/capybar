@@ -10,6 +10,7 @@ Simple customizable bar applications that aims to have as little external depend
 - Custom widgets creation via rust
 - Pre-built widgets:
     - Text
+    - IconText
     - Clock
     - Battery
     - CPU usage
@@ -43,7 +44,14 @@ programs.capybar = {
 ```
 
 ### Others
-Currently bar needs to be build manually. To do so clone the repo and write main file. Bulding the bar is done with cargo. The example is located in examples folder.
+Capybar can be installed via cargo using
+```cmd
+cargo install capybar
+```
+This will install and setup `capybar` executable.
+
+### Building from source
+Bulding the bar is done with cargo. The example is located in examples folder.
 ```
 cargo build --release
 ```
