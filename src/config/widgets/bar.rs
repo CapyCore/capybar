@@ -1,17 +1,17 @@
 use serde::Deserialize;
 
-use crate::widgets::{containers::bar::BarSettings, WidgetsList};
+use crate::widgets::{containers::bar::BarSettings, WidgetsSettingsList};
 
 #[derive(Default, Deserialize, Debug)]
 pub struct Bar {
     #[serde(default)]
     pub settings: BarSettings,
     #[serde(default)]
-    pub left: Vec<WidgetsList>,
+    pub left: Vec<WidgetsSettingsList>,
     #[serde(default)]
-    pub center: Vec<WidgetsList>,
+    pub center: Vec<WidgetsSettingsList>,
     #[serde(default)]
-    pub right: Vec<WidgetsList>,
+    pub right: Vec<WidgetsSettingsList>,
 }
 
 impl Bar {

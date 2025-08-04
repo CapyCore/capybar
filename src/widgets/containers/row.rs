@@ -1,18 +1,23 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    rc::Rc,
+};
 
 use anyhow::Result;
+use serde::Deserialize;
 use thiserror::Error;
 
 use crate::{
     root::Environment,
     services::Service,
     util::Color,
-    widgets::{Widget, WidgetData, WidgetError, WidgetNew},
+    widgets::{Style, Widget, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled},
 };
 
 use super::{Container, ContainerSingle};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "type", content = "padding")]
 pub enum Alignment {
     CenteringHorizontal,
     CenteringVertical,
@@ -32,14 +37,32 @@ impl Default for Alignment {
     }
 }
 
+impl Alignment {
+    pub const fn default() -> Self {
+        Alignment::GrowthHorizontalRight(10)
+    }
+}
+
 /// Settings of a [Row] container
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Default, Deserialize, Debug, Clone, Copy)]
 pub struct RowSettings {
-    pub background: Option<Color>,
-    pub border: Option<(usize, Color)>,
+    #[serde(default)]
     pub alignment: Alignment,
 
+    #[serde(default, flatten)]
     pub default_data: WidgetData,
+    #[serde(default, flatten)]
+    pub style: Style,
+}
+
+impl RowSettings {
+    pub const fn default() -> RowSettings {
+        RowSettings {
+            alignment: Alignment::default(),
+            default_data: WidgetData::default(),
+            style: Style::default(),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -59,9 +82,27 @@ pub struct Row {
     widgets: RefCell<Vec<Box<dyn Widget>>>,
     env: Option<Rc<Environment>>,
     services: RefCell<Vec<Box<dyn Service>>>,
+
+    is_ready: RefCell<bool>,
 }
 
 impl Widget for Row {
+    fn name(&self) -> WidgetList {
+        WidgetList::Row
+    }
+
+    fn as_styled(&self) -> Option<&dyn WidgetStyled> {
+        Some(self)
+    }
+
+    fn data(&self) -> Ref<'_, WidgetData> {
+        self.data.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, WidgetData> {
+        self.data.borrow_mut()
+    }
+
     fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(Rc::clone(&env));
 
@@ -79,9 +120,14 @@ impl Widget for Row {
         Ok(())
     }
 
+    fn env(&self) -> Option<Rc<Environment>> {
+        self.env.clone()
+    }
+
     fn init(&self) -> Result<(), WidgetError> {
         let mut data = self.data.borrow_mut();
-        let border = match self.settings.border {
+
+        let border = match self.settings.style.border {
             Some(a) => a.0,
             None => 0,
         };
@@ -89,70 +135,48 @@ impl Widget for Row {
         let widgets = self.widgets.borrow();
         for widget in widgets.iter() {
             widget.init()?;
-            let widget_data = widget.data().borrow_mut();
+            let widget_data = widget.data();
             data.height = usize::max(
                 data.height,
-                widget_data.height + widget_data.position.1 + widget_data.margin.3 + border,
+                widget_data.height
+                    + widget_data.position.1
+                    + border
+                    + self.settings.style.margin.up
+                    + self.settings.style.margin.down,
             );
         }
         Ok(())
     }
 
-    fn draw(&self) -> Result<(), WidgetError> {
-        if self.env.is_none() {
-            return Err(WidgetError::DrawWithNoEnv("Row".to_string()));
+    fn prepare(&self) -> Result<(), WidgetError> {
+        for widget in self.widgets.borrow_mut().iter() {
+            widget.prepare()?;
         }
 
         self.align_widgets()?;
+        self.apply_style()?;
 
-        let widgets = self.widgets.borrow_mut();
-        let mut data = self.data.borrow_mut();
+        *self.is_ready.borrow_mut() = true;
+        Ok(())
+    }
 
-        if widgets.is_empty() {
-            data.height = self.settings.border.unwrap_or((5, Color::NONE)).0 * 3;
+    fn draw(&self) -> Result<(), WidgetError> {
+        if self.env.is_none() {
+            return Err(WidgetError::DrawWithNoEnv(WidgetList::Row));
         }
 
-        let border = match self.settings.border {
-            Some(a) => (a.0, Some(a.1)),
-            None => (0, None),
-        };
-
-        {
-            let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
-            if let Some(color) = self.settings.background {
-                for x in border.0..data.width - border.0 {
-                    for y in border.0..data.height - border.0 {
-                        drawer.draw_pixel(&data, (x, y), color);
-                    }
-                }
-            }
-
-            if let Some(color) = border.1 {
-                for x in 0..border.0 {
-                    for y in 0..data.height {
-                        drawer.draw_pixel(&data, (x, y), color);
-                        drawer.draw_pixel(&data, (data.width - 1 - x, y), color);
-                    }
-                }
-
-                for x in 0..data.width {
-                    for y in 0..border.0 {
-                        drawer.draw_pixel(&data, (x, y), color);
-                        drawer.draw_pixel(&data, (x, data.height - 1 - y), color);
-                    }
-                }
-            }
+        if !*self.is_ready.borrow() {
+            self.prepare()?;
         }
+        *self.is_ready.borrow_mut() = false;
 
-        for widget in widgets.iter() {
+        self.draw_style()?;
+
+        for widget in self.widgets.borrow_mut().iter() {
             widget.draw()?;
         }
 
         Ok(())
-    }
-
-    fn data(&self) -> &RefCell<WidgetData> {
-        &self.data
     }
 }
 
@@ -183,8 +207,8 @@ impl Row {
         }
 
         let mut res = 0;
-        for widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
-            res = usize::max(res, widget.height + widget.position.1 + widget.margin.3);
+        for widget in widgets.iter_mut().map(|a| a.data()) {
+            res = usize::max(res, widget.height + widget.position.1);
         }
         res
     }
@@ -192,7 +216,7 @@ impl Row {
     fn align_widgets_centered_horizontal(&self) -> Result<(), RowError> {
         let mut data = self.data.borrow_mut();
 
-        let border = match self.settings.border {
+        let border = match self.settings.style.border {
             Some((i, _)) => i,
             None => 0,
         };
@@ -201,10 +225,15 @@ impl Row {
 
         if widgets.len() == 1 {
             {
-                let mut widget = widgets[0].data().borrow_mut();
+                let mut widget = widgets[0].data_mut();
 
-                widget.position.0 = data.position.0 + (data.width - border * 2 - widget.width) / 2;
-                widget.position.1 = data.position.1 + border + widget.margin.2;
+                widget.position.0 = data.position.0
+                    + (data.width - border * 2 - widget.width) / 2
+                    + self.style().margin.left;
+                widget.position.1 = data.position.1 + border + self.style().margin.up;
+                if let Some(styled) = widgets[0].as_styled() {
+                    widget.position.1 += styled.style().margin.up;
+                }
             }
 
             data.height = Row::get_max_height(&mut widgets) + border;
@@ -213,10 +242,7 @@ impl Row {
 
         let mut total_width = 0;
         for widget in widgets.iter_mut() {
-            total_width += {
-                let data = widget.data().borrow_mut();
-                data.width + data.margin.0 + data.margin.1
-            }
+            total_width += widget.data_mut().width;
         }
 
         if total_width > data.width - 2 * border {
@@ -227,12 +253,12 @@ impl Row {
         let mut x = data.position.0 + border;
 
         for widget in widgets.iter_mut() {
-            let mut widget = widget.data().borrow_mut();
+            let mut widget = widget.data_mut();
 
-            widget.position.0 = x + widget.margin.0;
-            widget.position.1 = data.position.1 + widget.margin.2;
+            widget.position.0 = x;
+            widget.position.1 = data.position.1;
 
-            x += widget.margin.0 + widget.width + widget.margin.1 + dist;
+            x += widget.width + dist;
         }
 
         data.height = Row::get_max_height(&mut widgets) + border;
@@ -247,8 +273,8 @@ impl Row {
 
             data.width = 0;
 
-            for widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
-                data.width += widget.margin.0 + widget.width + widget.margin.1 + padding;
+            for widget in widgets.iter_mut().map(|a| a.data_mut()) {
+                data.width += widget.width + padding;
             }
 
             data.width -= padding;
@@ -263,19 +289,22 @@ impl Row {
         let mut widgets = self.widgets.borrow_mut();
         let mut data = self.data.borrow_mut();
 
-        let border = match self.settings.border {
+        let border = match self.settings.style.border {
             Some((i, _)) => i,
             None => 0,
         };
 
-        let mut offset = border + data.position.0;
-        for mut widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
-            widget.position.1 = data.position.1 + widget.margin.2;
-            widget.position.0 = offset + widget.margin.0;
-            offset += widget.margin.0 + widget.width + widget.margin.1 + padding;
+        let mut offset = border + data.position.0 + self.settings.style.margin.left;
+        data.height = 0;
+        for mut widget in widgets.iter_mut().map(|a| a.data_mut()) {
+            widget.position.1 = data.position.1 + self.settings.style.margin.up + border;
+            widget.position.0 = offset;
+            offset += widget.width + padding;
+            data.height = usize::max(data.height, widget.height);
         }
 
         data.width = offset - padding + border;
+        data.height += self.settings.style.margin.up + self.settings.style.margin.down + 2 * border;
 
         Ok(())
     }
@@ -284,25 +313,32 @@ impl Row {
         let mut widgets = self.widgets.borrow_mut();
         let mut data = self.data.borrow_mut();
 
-        let border = match self.settings.border {
+        let border = match self.settings.style.border {
             Some((i, _)) => i,
             None => 0,
         };
 
-        let mut offset = data.position.0 - border;
-        for mut widget in widgets.iter_mut().map(|a| a.data().borrow_mut()) {
-            widget.position.1 = data.position.1 + widget.margin.2;
-            widget.position.0 = offset - widget.width - widget.margin.1;
-            offset -= widget.margin.0 + widget.width + widget.margin.1 + padding;
+        let mut offset = data.position.0 - border - self.settings.style.margin.right;
+        data.height = 0;
+        for mut widget in widgets.iter_mut().map(|a| a.data_mut()) {
+            widget.position.1 = data.position.1;
+            widget.position.0 = offset - widget.width;
+            offset -= widget.width + padding;
+            data.height = usize::max(data.height, widget.height);
         }
+        data.height += self.settings.style.margin.up + self.settings.style.margin.down + 2 * border;
 
-        data.width = data.position.0 - (offset - padding + border);
+        data.width = data.position.0 + padding - offset - border;
+
+        data.position.0 -= data.width;
 
         Ok(())
     }
 
     fn align_widgets(&self) -> Result<()> {
         if self.widgets.borrow_mut().is_empty() {
+            self.data.borrow_mut().height =
+                self.settings.style.border.unwrap_or((5, Color::NONE)).0 * 3;
             return Ok(());
         }
 
@@ -337,7 +373,14 @@ impl WidgetNew for Row {
             env,
             widgets: RefCell::new(Vec::new()),
             services: RefCell::new(Vec::new()),
+            is_ready: RefCell::new(false),
         })
+    }
+}
+
+impl WidgetStyled for Row {
+    fn style(&self) -> &Style {
+        &self.settings.style
     }
 }
 

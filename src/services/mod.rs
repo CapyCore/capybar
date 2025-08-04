@@ -5,7 +5,7 @@
 
 pub mod clients;
 
-use std::rc::Rc;
+use std::{fmt::Display, rc::Rc};
 
 use serde::Deserialize;
 use thiserror::Error;
@@ -54,4 +54,20 @@ pub enum ServiceError {
 
     #[error("Custom error occured in service \"{0}\": \n \"{1}\"")]
     Custom(String, anyhow::Error),
+}
+
+/// All available widgets in capybar
+#[derive(Debug, Clone)]
+pub enum ServiceList {
+    Keyboard,
+    Custom(String),
+}
+
+impl Display for ServiceList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Keyboard => write!(f, "Keyboard"),
+            Self::Custom(name) => write!(f, "{name}"),
+        }
+    }
 }

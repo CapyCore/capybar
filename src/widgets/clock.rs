@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    rc::Rc,
+};
 
 use anyhow::Result;
 use chrono::Local;
@@ -10,7 +13,9 @@ use crate::{
     widgets::{text::Text, Widget},
 };
 
-use super::{text::TextSettings, WidgetData, WidgetError, WidgetNew};
+use super::{
+    text::TextSettings, Margin, Style, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled,
+};
 
 fn default_format() -> String {
     "%H:%M".to_string()
@@ -32,6 +37,9 @@ pub struct ClockSettings {
 
     #[serde(default)]
     pub default_data: WidgetData,
+
+    #[serde(default, flatten)]
+    pub style: Style,
 }
 
 impl Default for ClockSettings {
@@ -43,6 +51,8 @@ impl Default for ClockSettings {
             font_color: Color::BLACK,
 
             default_data: WidgetData::default(),
+
+            style: Style::default(),
         }
     }
 }
@@ -53,6 +63,7 @@ pub struct Clock {
     settings: ClockSettings,
 
     data: RefCell<WidgetData>,
+    is_ready: RefCell<bool>,
 }
 
 impl Clock {
@@ -60,15 +71,35 @@ impl Clock {
     pub fn update(&self) -> &Self {
         let mut text = self.text.borrow_mut();
         text.change_text(&Local::now().format(&self.settings.format).to_string());
-        text.data().borrow_mut().position = self.data.borrow_mut().position;
+        text.data_mut().position = self.data.borrow_mut().position;
 
         self
     }
 }
 
 impl Widget for Clock {
+    fn name(&self) -> WidgetList {
+        WidgetList::Clock
+    }
+
+    fn as_styled(&self) -> Option<&dyn WidgetStyled> {
+        Some(self)
+    }
+
+    fn data(&self) -> Ref<'_, WidgetData> {
+        self.data.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, WidgetData> {
+        self.data.borrow_mut()
+    }
+
     fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.text.borrow_mut().bind(env)
+    }
+
+    fn env(&self) -> Option<Rc<Environment>> {
+        self.text.borrow_mut().env()
     }
 
     fn init(&self) -> Result<(), WidgetError> {
@@ -76,22 +107,39 @@ impl Widget for Clock {
 
         text.init()?;
 
-        let text_data = text.data().borrow_mut();
+        let text_data = text.data_mut();
         let mut data = self.data.borrow_mut();
 
-        data.width = text_data.width;
-        data.height = text_data.height;
+        data.width += text_data.width;
+        data.height += text_data.height;
 
         Ok(())
     }
 
-    fn draw(&self) -> Result<(), WidgetError> {
-        self.update();
-        self.text.borrow_mut().draw()
+    fn prepare(&self) -> Result<(), WidgetError> {
+        {
+            let text = self.text.borrow();
+            text.prepare()?;
+            let mut it_data = text.data_mut();
+            let mut self_data = self.data.borrow_mut();
+            it_data.position = self_data.position;
+            self_data.width = it_data.width;
+            self_data.height = it_data.height;
+        }
+
+        self.apply_style()?;
+
+        *self.is_ready.borrow_mut() = true;
+        Ok(())
     }
 
-    fn data(&self) -> &RefCell<WidgetData> {
-        &self.data
+    fn draw(&self) -> Result<(), WidgetError> {
+        if self.env().is_none() {
+            return Err(WidgetError::DrawWithNoEnv(WidgetList::Clock));
+        }
+        self.draw_style()?;
+        self.update();
+        self.text.borrow_mut().draw()
     }
 }
 
@@ -114,6 +162,16 @@ impl WidgetNew for Clock {
                     ..WidgetData::default()
                 },
 
+                style: Style {
+                    margin: Margin {
+                        left: 2,
+                        right: 2,
+                        up: 0,
+                        down: 0,
+                    },
+                    ..Style::default()
+                },
+
                 ..TextSettings::default()
             },
         )?);
@@ -121,6 +179,13 @@ impl WidgetNew for Clock {
             text,
             data: RefCell::new(settings.default_data),
             settings,
+            is_ready: RefCell::new(false),
         })
+    }
+}
+
+impl WidgetStyled for Clock {
+    fn style(&self) -> &Style {
+        &self.settings.style
     }
 }

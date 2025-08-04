@@ -358,7 +358,7 @@ impl Root {
 
         let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Top, Some("Bar"), None);
 
-        let bar = Root {
+        let root = Root {
             flag: true,
 
             registry_state: RegistryState::new(globals),
@@ -380,7 +380,7 @@ impl Root {
             env: None,
         };
 
-        Ok(bar)
+        Ok(root)
     }
 
     pub fn apply_config(&mut self, config: Config) -> Result<()> {
@@ -432,7 +432,7 @@ impl Root {
         bar.bind(Rc::clone(self.env.as_ref().unwrap()))?;
         bar.init()?;
 
-        self.height = max(self.height, bar.data().borrow_mut().height as u32);
+        self.height = max(self.height, bar.data_mut().height as u32);
 
         for output in self.output_state().outputs() {
             let info = self
@@ -465,8 +465,8 @@ impl Root {
         self.init()?;
 
         loop {
-            event_queue.blocking_dispatch(self)?;
             thread::sleep(Duration::from_millis(100));
+            event_queue.blocking_dispatch(self)?;
         }
 
         //Ok(self)
@@ -492,6 +492,25 @@ impl Root {
 
         for service in &mut self.services {
             service.run()?;
+        }
+
+        self.bar.as_ref().unwrap().prepare()?;
+
+        {
+            let bar = self.bar.as_ref().unwrap().data();
+            if self.width != bar.width as u32 || self.height != bar.height as u32 {
+                self.width = bar.width as u32;
+                self.height = bar.height as u32;
+
+                self.layer.set_size(self.width, self.height);
+                self.layer.set_exclusive_zone(self.height as i32);
+
+                self.env.as_ref().unwrap().drawer.borrow_mut().update_sizes(
+                    &mut self.shm,
+                    self.width as i32,
+                    self.height as i32,
+                );
+            }
         }
 
         self.layer

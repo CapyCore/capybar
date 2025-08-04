@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell, RefMut};
 
 use anyhow::Result;
 use chrono::{DateTime, Local, TimeDelta};
@@ -6,8 +6,9 @@ use serde::Deserialize;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use super::{
-    text::{Text, TextSettings},
-    Style, Widget, WidgetData, WidgetError, WidgetNew,
+    icon_text::{IconText, IconTextSettings},
+    text::TextSettings,
+    Style, Widget, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled,
 };
 
 /// Settings of a [CPU] widget
@@ -31,9 +32,10 @@ pub struct CPUSettings {
 /// Widget displaying current CPU status.
 pub struct CPU {
     data: RefCell<WidgetData>,
+    settings: CPUSettings,
+    is_ready: RefCell<bool>,
 
-    icon: RefCell<Text>,
-    percent: RefCell<Text>,
+    icon_text: RefCell<IconText>,
 
     sys: RefCell<System>,
 
@@ -47,79 +49,97 @@ impl CPU {
         sys.refresh_cpu_usage();
         sys.global_cpu_usage().round() as usize
     }
-
-    fn align(&self) {
-        let icon = self.icon.borrow_mut();
-        let text = self.percent.borrow_mut();
-
-        let mut icon_data = icon.data().borrow_mut();
-        let mut text_data = text.data().borrow_mut();
-        let data = &mut self.data.borrow_mut();
-
-        icon_data.position.0 = data.position.0 + icon_data.margin.0;
-        icon_data.position.1 = data.position.1 + icon_data.margin.2;
-        text_data.position.0 =
-            icon_data.position.0 + icon_data.width + icon_data.margin.1 + text_data.margin.0;
-        text_data.position.1 = data.position.1 + text_data.margin.2;
-
-        data.height = usize::max(
-            text_data.position.1 + text_data.height + text_data.margin.3,
-            icon_data.position.1 + icon_data.height + icon_data.margin.3,
-        );
-
-        data.width = icon_data.margin.0
-            + icon_data.margin.1
-            + icon_data.width
-            + text_data.margin.0
-            + text_data.margin.1
-            + text_data.width;
-    }
 }
 
 impl Widget for CPU {
+    fn name(&self) -> WidgetList {
+        WidgetList::CPU
+    }
+
+    fn as_styled(&self) -> Option<&dyn WidgetStyled> {
+        Some(self)
+    }
+
+    fn data(&self) -> Ref<'_, WidgetData> {
+        self.data.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, WidgetData> {
+        self.data.borrow_mut()
+    }
+
     fn bind(
         &mut self,
         env: std::rc::Rc<crate::root::Environment>,
     ) -> anyhow::Result<(), WidgetError> {
-        self.percent.borrow_mut().bind(env.clone())?;
-        self.icon.borrow_mut().bind(env)
+        self.icon_text.borrow_mut().bind(env)
+    }
+
+    fn env(&self) -> Option<std::rc::Rc<crate::root::Environment>> {
+        self.icon_text.borrow().env()
     }
 
     fn init(&self) -> Result<(), WidgetError> {
-        self.icon.borrow_mut().init()?;
-        self.percent.borrow_mut().init()?;
+        self.apply_style()?;
 
-        self.align();
+        self.icon_text.borrow_mut().change_text("Err");
+        self.icon_text.borrow_mut().change_icon("");
+        self.icon_text.borrow().init()?;
 
         Ok(())
     }
 
+    fn prepare(&self) -> Result<(), WidgetError> {
+        {
+            let it = self.icon_text.borrow();
+            it.prepare()?;
+            let mut it_data = it.data_mut();
+            let mut self_data = self.data.borrow_mut();
+            it_data.position = self_data.position;
+            self_data.width = it_data.width;
+            self_data.height = it_data.height;
+        }
+
+        self.apply_style()?;
+
+        *self.is_ready.borrow_mut() = true;
+        Ok(())
+    }
+
     fn draw(&self) -> Result<(), WidgetError> {
+        if self.env().is_none() {
+            return Err(WidgetError::DrawWithNoEnv(WidgetList::CPU));
+        }
+
+        self.draw_style()?;
+
         let mut last_update = self.last_update.borrow_mut();
 
         if Local::now() - *last_update >= self.update_rate {
             let info = self.get_info();
 
-            {
-                let mut text = self.percent.borrow_mut();
-                if self.sys.borrow_mut().cpus().is_empty() {
-                    self.icon.borrow_mut().change_text("");
-                    text.change_text("ERR");
-                } else {
-                    text.change_text(format!("{info}%").as_str());
-                }
+            if self.sys.borrow_mut().cpus().is_empty() {
+                self.icon_text.borrow_mut().change_icon("");
+                self.icon_text.borrow_mut().change_text("ERR");
+            } else {
+                self.icon_text
+                    .borrow_mut()
+                    .change_text(format!("{info}%").as_str());
             }
 
-            self.align();
             *last_update = Local::now();
         }
 
-        self.percent.borrow_mut().draw()?;
-        self.icon.borrow_mut().draw()
-    }
+        {
+            let it = self.icon_text.borrow();
+            let mut it_data = it.data_mut();
+            let mut self_data = self.data.borrow_mut();
+            it_data.position = self_data.position;
+            self_data.width = it_data.width;
+            self_data.height = it_data.height;
+        }
 
-    fn data(&self) -> &RefCell<WidgetData> {
-        &self.data
+        self.icon_text.borrow().draw()
     }
 }
 
@@ -135,28 +155,15 @@ impl WidgetNew for CPU {
     {
         Ok(Self {
             data: RefCell::new(settings.default_data),
-            icon: RefCell::new(Text::new(
-                env.clone(),
-                TextSettings {
-                    text: "".to_string(),
-                    default_data: WidgetData {
-                        margin: (0, 0, 0, 0),
-                        ..WidgetData::default()
-                    },
-                    fontid: 1,
-                    ..settings.text_settings.clone()
-                },
-            )?),
-            percent: RefCell::new(Text::new(
-                env,
-                TextSettings {
-                    text: "Err".to_string(),
 
-                    default_data: WidgetData {
-                        margin: (5, 0, 2, 0),
-                        ..WidgetData::default()
-                    },
-                    ..settings.text_settings.clone()
+            is_ready: RefCell::new(false),
+
+            icon_text: RefCell::new(IconText::new(
+                env.clone(),
+                IconTextSettings {
+                    icon_settings: settings.text_settings.clone(),
+                    text_settings: settings.text_settings.clone(),
+                    ..IconTextSettings::default()
                 },
             )?),
 
@@ -168,6 +175,14 @@ impl WidgetNew for CPU {
             last_update: RefCell::new(
                 chrono::Local::now() - TimeDelta::milliseconds(settings.update_rate as i64),
             ),
+
+            settings,
         })
+    }
+}
+
+impl WidgetStyled for CPU {
+    fn style(&self) -> &Style {
+        &self.settings.style
     }
 }

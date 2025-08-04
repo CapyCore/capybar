@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    rc::Rc,
+};
 
 use anyhow::Result;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
@@ -13,7 +16,7 @@ use crate::{
     widgets::Widget,
 };
 
-use super::{Style, WidgetData, WidgetError, WidgetNew};
+use super::{Style, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled};
 
 /// Settings of a [Text] widget
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -49,6 +52,8 @@ pub struct Text {
     settings: TextSettings,
     data: RefCell<WidgetData>,
     env: Option<Rc<Environment>>,
+
+    is_ready: RefCell<bool>,
 }
 
 impl Text {
@@ -91,6 +96,14 @@ impl Text {
 }
 
 impl Widget for Text {
+    fn name(&self) -> WidgetList {
+        WidgetList::Text
+    }
+
+    fn as_styled(&self) -> Option<&dyn WidgetStyled> {
+        Some(self)
+    }
+
     fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(env);
 
@@ -107,6 +120,10 @@ impl Widget for Text {
         Ok(())
     }
 
+    fn env(&self) -> Option<Rc<Environment>> {
+        self.env.clone()
+    }
+
     fn init(&self) -> Result<(), WidgetError> {
         self.update_width();
         self.data.borrow_mut().height = self.layout.height() as usize;
@@ -114,22 +131,30 @@ impl Widget for Text {
         Ok(())
     }
 
+    fn prepare(&self) -> Result<(), WidgetError> {
+        self.update_width();
+        self.apply_style()?;
+
+        *self.is_ready.borrow_mut() = true;
+        self.data.borrow_mut().height = self.layout.height() as usize;
+        Ok(())
+    }
+
     fn draw(&self) -> Result<(), WidgetError> {
         if self.env.is_none() {
-            return Err(WidgetError::DrawWithNoEnv("Text".to_string()));
+            return Err(WidgetError::DrawWithNoEnv(WidgetList::Text));
         }
+
+        if !*self.is_ready.borrow() {
+            self.prepare()?;
+        }
+        *self.is_ready.borrow_mut() = false;
+
+        self.draw_style()?;
 
         let font = &fonts::fonts_vec()[self.settings.fontid];
         let data = &self.data.borrow_mut();
         let mut drawer = self.env.as_ref().unwrap().drawer.borrow_mut();
-
-        if let Some(color) = self.settings.style.background {
-            for x in 0..data.width {
-                for y in 0..data.height {
-                    drawer.draw_pixel(data, (x, y), color);
-                }
-            }
-        }
 
         for glyph in self.layout.glyphs() {
             drawer.draw_glyph(data, glyph, font, self.settings.font_color);
@@ -138,8 +163,12 @@ impl Widget for Text {
         Ok(())
     }
 
-    fn data(&self) -> &RefCell<WidgetData> {
-        &self.data
+    fn data(&self) -> Ref<'_, WidgetData> {
+        self.data.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, WidgetData> {
+        self.data.borrow_mut()
     }
 }
 
@@ -166,11 +195,19 @@ impl WidgetNew for Text {
             data: RefCell::new(settings.default_data),
             settings,
             env: None,
+
+            is_ready: RefCell::new(false),
         };
 
         if let Some(e) = env {
             text.bind(e)?;
         }
         Ok(text)
+    }
+}
+
+impl WidgetStyled for Text {
+    fn style(&self) -> &Style {
+        &self.settings.style
     }
 }

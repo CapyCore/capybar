@@ -7,7 +7,7 @@ use capybar::{
         containers::bar::{Bar, BarSettings},
         cpu::{CPUSettings, CPU},
         text::TextSettings,
-        Style, WidgetData, WidgetNew,
+        Margin, Style, WidgetData, WidgetNew,
     },
 };
 use wayland_client::{globals::registry_queue_init, Connection};
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Left widgets
-    bar.create_child_left(
+    bar.create_widget_left(
         CPU::new,
         CPUSettings {
             update_rate: 1000,
@@ -60,15 +60,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..TextSettings::default()
             },
             default_data: WidgetData {
-                margin: (10, 0, 0, 0),
                 ..WidgetData::default()
+            },
+            style: Style {
+                margin: Margin {
+                    left: 10,
+                    right: 0,
+                    up: 0,
+                    down: 0,
+                },
+                ..Default::default()
             },
             ..CPUSettings::default()
         },
     )?;
 
     //Center widgets
-    bar.create_child_center(
+    bar.create_widget_center(
         Clock::new,
         ClockSettings {
             font_color: catpuccin_mocha.font,
@@ -79,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Right widgets
-    bar.create_child_right(
+    bar.create_widget_right(
         Battery::new,
         BatterySettings {
             text_settings: TextSettings {
@@ -89,8 +97,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..TextSettings::default()
             },
             default_data: WidgetData {
-                margin: (0, 10, 0, 0),
                 ..WidgetData::default()
+            },
+            style: Style {
+                margin: Margin {
+                    left: 0,
+                    right: 10,
+                    up: 0,
+                    down: 0,
+                },
+                ..Default::default()
             },
             ..BatterySettings::default()
         },
