@@ -1,11 +1,13 @@
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::Add,
+    time::Duration,
 };
 
 use anyhow::Result;
-use battery::{Manager, State};
+use battery::{units::time::nanosecond, Manager, State};
 use serde::Deserialize;
+use smithay_client_toolkit::seat::pointer::PointerEventKind;
 
 use super::{
     icon_text::{IconText, IconTextSettings},
@@ -21,18 +23,26 @@ const fn battery_charging_default() -> [char; 11] {
     ['󰢟', '󰢜', '󰂆', '󰂇', '󰂈', '󰢝', '󰂉', '󰢞', '󰂊', '󰂋', '󰂅']
 }
 
+const fn battery_state_default() -> BatteryState {
+    BatteryState::Percentage
+}
+
 /// Settings of a [Battery] widget
 #[derive(Debug, Deserialize, Clone)]
 pub struct BatterySettings {
     /// Array of all symbols for percentages of battery when it is not charging. Symbols are changed
     /// every 10% including 0%, therefor needs 11 symbols.  
     #[serde(default = "battery_not_charging_default")]
-    pub battery_not_charging: [char; 11],
+    pub battery_discharging: [char; 11],
 
     /// Array of all symbols for percentages of battery when it is charging. Symbols are changed
     /// every 10% including 0%, therefor needs 11 symbols.  
     #[serde(default = "battery_charging_default")]
     pub battery_charging: [char; 11],
+
+    /// Default state of a widget. Controls type of displayed iformation. Could be either "Percentage" or "Time"
+    #[serde(default = "battery_state_default")]
+    pub default_state: BatteryState,
 
     /// Settings for underlying [Text] widget
     #[serde(default, flatten)]
@@ -48,8 +58,9 @@ pub struct BatterySettings {
 impl Default for BatterySettings {
     fn default() -> Self {
         Self {
-            battery_not_charging: battery_not_charging_default(),
+            battery_discharging: battery_not_charging_default(),
             battery_charging: battery_charging_default(),
+            default_state: battery_state_default(),
 
             text_settings: TextSettings::default(),
 
@@ -65,6 +76,7 @@ pub struct BatteryInfo {
     energy: f32,
     full: f32,
     state: State,
+    time: Duration,
 }
 
 impl Add for BatteryInfo {
@@ -88,6 +100,7 @@ impl Add for BatteryInfo {
                     State::Unknown
                 }
             },
+            time: self.time + rhs.time,
         }
     }
 }
@@ -98,7 +111,15 @@ impl BatteryInfo {
     }
 }
 
-/// Widget displaying current battery status.
+/// Posible states of [Battery] widget
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub enum BatteryState {
+    Percentage,
+    Time,
+}
+
+/// Widget displaying current battery status. Changes displayed information on click. Can dispaly
+/// time to charge/discarg or precentage.
 pub struct Battery {
     manager: Manager,
     icon_text: RefCell<IconText>,
@@ -107,7 +128,7 @@ pub struct Battery {
     data: RefCell<WidgetData>,
     is_ready: RefCell<bool>,
 
-    prev_charge: RefCell<i8>,
+    state: RefCell<BatteryState>,
 }
 
 impl Battery {
@@ -121,10 +142,29 @@ impl Battery {
                     Ok(battery) => {
                         let charge_rate = battery.state_of_charge().value;
                         let full = battery.energy_full().value;
+                        let state = battery.state();
+                        use State::*;
+                        let time = match state {
+                            Charging => {
+                                Duration::from_nanos(if let Some(value) = battery.time_to_full() {
+                                    value.get::<nanosecond>() as u64
+                                } else {
+                                    0
+                                })
+                            }
+                            _ => {
+                                Duration::from_nanos(if let Some(value) = battery.time_to_empty() {
+                                    value.get::<nanosecond>() as u64
+                                } else {
+                                    0
+                                })
+                            }
+                        };
                         Some(BatteryInfo {
                             energy: charge_rate * full,
                             full,
-                            state: battery.state(),
+                            state,
+                            time,
                         })
                     }
                     Err(_) => None,
@@ -134,10 +174,42 @@ impl Battery {
                         energy: 0.0,
                         full: 0.0,
                         state: battery::State::Unknown,
+                        time: Duration::from_nanos(0),
                     },
                     |acc, x| acc + x,
                 ),
         )
+    }
+
+    fn update_text(&self) {
+        use BatteryState::*;
+        let info = self.get_info();
+        let mut it = self.icon_text.borrow_mut();
+        if info.is_none() {
+            it.change_icon("");
+            it.change_text("ERR");
+        }
+        let info = info.unwrap();
+        let percentage: i8 = (info.percentage() * 100.0).round() as i8;
+        it.change_icon(
+            format!(
+                "{}",
+                match info.state {
+                    State::Charging => self.settings.battery_charging,
+                    _ => self.settings.battery_discharging,
+                }[(percentage / 10) as usize],
+            )
+            .as_str(),
+        );
+        match *self.state.borrow() {
+            Percentage => {
+                it.change_text(format!("{percentage}%").as_str());
+            }
+            Time => {
+                let time = info.time.as_secs();
+                it.change_text(format!("{:02}:{:02}", time / 3600, time / 60 % 60).as_str());
+            }
+        }
     }
 }
 
@@ -158,6 +230,25 @@ impl Widget for Battery {
         self.data.borrow_mut()
     }
 
+    fn handle_mouse_press(
+        &self,
+        event: &smithay_client_toolkit::seat::pointer::PointerEvent,
+    ) -> Result<(), WidgetError> {
+        if let PointerEventKind::Press { button, .. } = event.kind {
+            if button == 272 {
+                let mut state = self.state.borrow_mut();
+                use BatteryState::*;
+                *state = match *state {
+                    Time => Percentage,
+                    Percentage => Time,
+                };
+                println!("{state:?}");
+            }
+        }
+
+        Ok(())
+    }
+
     fn env(&self) -> Option<std::rc::Rc<crate::root::Environment>> {
         self.icon_text.borrow().env()
     }
@@ -175,7 +266,7 @@ impl Widget for Battery {
         self.icon_text.borrow_mut().change_text("Err");
         self.icon_text
             .borrow_mut()
-            .change_icon(&self.settings.battery_not_charging[0].to_string());
+            .change_icon(&self.settings.battery_discharging[0].to_string());
         self.icon_text.borrow().init()?;
 
         Ok(())
@@ -203,40 +294,9 @@ impl Widget for Battery {
             return Err(WidgetError::DrawWithNoEnv(WidgetList::Battery));
         }
 
+        self.update_text();
+
         self.draw_style()?;
-
-        let info = self.get_info();
-
-        let mut prev_charge = self.prev_charge.borrow_mut();
-        {
-            let mut it = self.icon_text.borrow_mut();
-            match info {
-                Some(i) => {
-                    let percentage: i8 = (i.percentage() * 100.0).round() as i8;
-
-                    if percentage != *prev_charge {
-                        it.change_icon(
-                            format!(
-                                "{}",
-                                match i.state {
-                                    State::Charging => self.settings.battery_charging,
-                                    _ => self.settings.battery_not_charging,
-                                }[(percentage / 10) as usize],
-                            )
-                            .as_str(),
-                        );
-                        it.change_text(format!("{percentage}%").as_str());
-                    }
-                }
-                None => {
-                    if *prev_charge != -1 {
-                        it.change_icon("");
-                        it.change_text("ERR");
-                    }
-                    *prev_charge = -1;
-                }
-            };
-        }
 
         {
             let it = self.icon_text.borrow();
@@ -282,7 +342,8 @@ impl WidgetNew for Battery {
 
             data: RefCell::new(settings.default_data),
             settings,
-            prev_charge: RefCell::new(0),
+
+            state: RefCell::new(BatteryState::Percentage),
         })
     }
 }

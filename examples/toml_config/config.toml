@@ -47,5 +47,6 @@
     [bar.right.settings] 
     size = 24
     font_color = 0xf5e0dcff
+    default_state = "Percentage"
     margin = [0,3,3,0]
     border = [1, 0x74c7ecff]
