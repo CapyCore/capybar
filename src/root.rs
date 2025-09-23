@@ -18,7 +18,7 @@ use smithay_client_toolkit::{
     registry_handlers,
     seat::{
         keyboard::{KeyEvent, KeyboardHandler, Keysym, Modifiers},
-        pointer::{PointerEvent, PointerEventKind, PointerHandler},
+        pointer::{PointerEvent, PointerHandler},
         Capability, SeatHandler, SeatState,
     },
     shell::{
@@ -75,7 +75,6 @@ pub struct Root {
     first_configure: bool,
     width: u32,
     height: u32,
-    shift: Option<u32>,
     layer: LayerSurface,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     keyboard_focus: bool,
@@ -309,20 +308,15 @@ impl PointerHandler for Root {
         _pointer: &wl_pointer::WlPointer,
         events: &[PointerEvent],
     ) {
-        use PointerEventKind::*;
         for event in events {
             if &event.surface != self.layer.wl_surface() {
                 continue;
             }
-            match event.kind {
-                Enter { .. } => {}
-                Leave { .. } => {}
-                Motion { .. } => {}
-                Press { .. } => {
-                    self.shift = self.shift.xor(Some(0));
+            match self.bar.as_ref().unwrap().handle_mouse_press(event) {
+                Ok(..) => {}
+                Err(error) => {
+                    println!("Mouse press failed with error:\n {error}");
                 }
-                Release { .. } => {}
-                Axis { .. } => {}
             }
         }
     }
@@ -369,7 +363,6 @@ impl Root {
             first_configure: true,
             width: 16,
             height: 16,
-            shift: None,
             layer,
             keyboard: None,
             keyboard_focus: false,

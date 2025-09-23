@@ -103,6 +103,24 @@ impl Widget for Row {
         self.data.borrow_mut()
     }
 
+    fn handle_mouse_press(
+        &self,
+        event: &smithay_client_toolkit::seat::pointer::PointerEvent,
+    ) -> Result<(), WidgetError> {
+        for child in self.widgets.borrow().iter() {
+            let data = child.data();
+            if data.position.0 as f64 <= event.position.0
+                && event.position.0 <= (data.position.0 + data.width) as f64
+                && data.position.1 as f64 <= event.position.1
+                && event.position.1 <= (data.position.1 + data.height) as f64
+            {
+                child.handle_mouse_press(event)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn bind(&mut self, env: Rc<Environment>) -> Result<(), WidgetError> {
         self.env = Some(Rc::clone(&env));
 

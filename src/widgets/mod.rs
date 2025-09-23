@@ -16,6 +16,7 @@ use std::{
 
 use anyhow::Result;
 use serde::Deserialize;
+use smithay_client_toolkit::seat::pointer::PointerEvent;
 use thiserror::Error;
 
 use crate::{
@@ -60,6 +61,10 @@ pub trait Widget {
 
     fn try_data_mut(&self) -> RefMut<'_, WidgetData> {
         todo!()
+    }
+
+    fn handle_mouse_press(&self, event: &PointerEvent) -> Result<(), WidgetError> {
+        Ok(())
     }
 
     /// Runtime check if widget is styled
@@ -316,18 +321,19 @@ pub enum WidgetList {
 
 impl Display for WidgetList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use WidgetList::*;
         match self {
-            Self::Text => write!(f, "Text"),
-            Self::IconText => write!(f, "Text"),
-            Self::Clock => write!(f, "Clock"),
-            Self::Battery => write!(f, "Battery"),
-            Self::CPU => write!(f, "Cpu"),
-            Self::Keyboard => write!(f, "Keyboard"),
+            Text => write!(f, "Text"),
+            IconText => write!(f, "Text"),
+            Clock => write!(f, "Clock"),
+            Battery => write!(f, "Battery"),
+            CPU => write!(f, "Cpu"),
+            Keyboard => write!(f, "Keyboard"),
 
-            Self::Row => write!(f, "Row"),
-            Self::Bar => write!(f, "Bar"),
+            Row => write!(f, "Row"),
+            Bar => write!(f, "Bar"),
 
-            Self::Custom(name) => write!(f, "{name}"),
+            Custom(name) => write!(f, "{name}"),
         }
     }
 }
@@ -350,26 +356,17 @@ impl WidgetsSettingsList {
         &self,
         container: &mut impl containers::ContainerSingle,
     ) -> Result<(), WidgetError> {
+        use WidgetsSettingsList::*;
         match self {
-            WidgetsSettingsList::Text(settings) => {
-                container.create_widget(text::Text::new, settings.clone())
-            }
-            WidgetsSettingsList::Clock(settings) => {
-                container.create_widget(clock::Clock::new, settings.clone())
-            }
-            WidgetsSettingsList::Battery(settings) => {
-                container.create_widget(battery::Battery::new, settings.clone())
-            }
-            WidgetsSettingsList::CPU(settings) => {
-                container.create_widget(cpu::CPU::new, settings.clone())
-            }
-            WidgetsSettingsList::Keyboard(wsettings, psettings) => {
+            Text(settings) => container.create_widget(text::Text::new, settings.clone()),
+            Clock(settings) => container.create_widget(clock::Clock::new, settings.clone()),
+            Battery(settings) => container.create_widget(battery::Battery::new, settings.clone()),
+            CPU(settings) => container.create_widget(cpu::CPU::new, settings.clone()),
+            Keyboard(wsettings, psettings) => {
                 container.create_service(crate::services::clients::Keyboard::new, *psettings)?;
                 container.create_widget(keyboard::Keyboard::new, wsettings.clone())
             }
-            WidgetsSettingsList::Custom(_) => {
-                todo!()
-            }
+            Custom(_) => todo!(),
         }
     }
 }

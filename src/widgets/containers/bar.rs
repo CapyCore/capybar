@@ -166,6 +166,17 @@ impl Widget for Bar {
         self.data.borrow_mut()
     }
 
+    fn handle_mouse_press(
+        &self,
+        event: &smithay_client_toolkit::seat::pointer::PointerEvent,
+    ) -> Result<(), WidgetError> {
+        self.left.borrow().handle_mouse_press(event)?;
+        self.center.borrow().handle_mouse_press(event)?;
+        self.right.borrow().handle_mouse_press(event)?;
+
+        Ok(())
+    }
+
     fn bind(
         &mut self,
         env: std::rc::Rc<crate::root::Environment>,
