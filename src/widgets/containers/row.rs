@@ -338,11 +338,12 @@ impl Row {
 
         let mut offset = data.position.0 - border - self.settings.style.margin.right;
         data.height = 0;
-        for mut widget in widgets.iter_mut().map(|a| a.data_mut()) {
-            widget.position.1 = data.position.1;
-            widget.position.0 = offset - widget.width;
-            offset -= widget.width + padding;
-            data.height = usize::max(data.height, widget.height);
+        for widget in widgets.iter_mut() {
+            let mut wd = widget.data_mut();
+            wd.position.1 = data.position.1;
+            wd.position.0 = offset - wd.width;
+            offset -= wd.width + padding;
+            data.height = usize::max(data.height, wd.height);
         }
         data.height += self.settings.style.margin.up + self.settings.style.margin.down + 2 * border;
 
@@ -360,6 +361,10 @@ impl Row {
             return Ok(());
         }
 
+        for widget in self.widgets.borrow().iter() {
+            widget.prepare()?;
+        }
+
         match self.settings.alignment {
             Alignment::CenteringHorizontal => self.align_widgets_centered_horizontal()?,
             Alignment::CenteringVertical => todo!(),
@@ -374,6 +379,10 @@ impl Row {
             Alignment::GrowthVerticalUp(_) => todo!(),
             Alignment::GrowthVerticalDown(_) => todo!(),
         };
+
+        for widget in self.widgets.borrow().iter() {
+            widget.prepare()?;
+        }
 
         Ok(())
     }

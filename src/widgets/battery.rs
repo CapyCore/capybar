@@ -126,7 +126,6 @@ pub struct Battery {
 
     settings: BatterySettings,
     data: RefCell<WidgetData>,
-    is_ready: RefCell<bool>,
 
     state: RefCell<BatteryState>,
 }
@@ -203,7 +202,7 @@ impl Battery {
         );
         match *self.state.borrow() {
             Percentage => {
-                it.change_text(format!("{percentage}%").as_str());
+                it.change_text(format!("{percentage: >2}%").as_str());
             }
             Time => {
                 let time = info.time.as_secs();
@@ -242,7 +241,6 @@ impl Widget for Battery {
                     Time => Percentage,
                     Percentage => Time,
                 };
-                println!("{state:?}");
             }
         }
 
@@ -273,9 +271,10 @@ impl Widget for Battery {
     }
 
     fn prepare(&self) -> Result<(), WidgetError> {
+        self.update_text();
+
         {
             let it = self.icon_text.borrow();
-            it.prepare()?;
             let mut it_data = it.data_mut();
             let mut self_data = self.data.borrow_mut();
             it_data.position = self_data.position;
@@ -284,8 +283,8 @@ impl Widget for Battery {
         }
 
         self.apply_style()?;
+        self.icon_text.borrow().prepare()?;
 
-        *self.is_ready.borrow_mut() = true;
         Ok(())
     }
 
@@ -294,18 +293,7 @@ impl Widget for Battery {
             return Err(WidgetError::DrawWithNoEnv(WidgetList::Battery));
         }
 
-        self.update_text();
-
         self.draw_style()?;
-
-        {
-            let it = self.icon_text.borrow();
-            let mut it_data = it.data_mut();
-            let mut self_data = self.data.borrow_mut();
-            it_data.position = self_data.position;
-            self_data.width = it_data.width;
-            self_data.height = it_data.height;
-        }
 
         self.icon_text.borrow().draw()
     }
@@ -329,7 +317,6 @@ impl WidgetNew for Battery {
         let manager = manager.unwrap();
         Ok(Self {
             manager,
-            is_ready: RefCell::new(false),
 
             icon_text: RefCell::new(IconText::new(
                 env.clone(),

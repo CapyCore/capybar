@@ -33,7 +33,6 @@ pub struct CPUSettings {
 pub struct CPU {
     data: RefCell<WidgetData>,
     settings: CPUSettings,
-    is_ready: RefCell<bool>,
 
     icon_text: RefCell<IconText>,
 
@@ -44,10 +43,39 @@ pub struct CPU {
 }
 
 impl CPU {
-    fn get_info(&self) -> usize {
-        let mut sys = self.sys.borrow_mut();
-        sys.refresh_cpu_usage();
-        sys.global_cpu_usage().round() as usize
+    fn update_text(&self) {
+        let info = {
+            let mut sys = self.sys.borrow_mut();
+            sys.refresh_cpu_usage();
+            sys.global_cpu_usage().round() as usize
+        };
+
+        let mut last_update = self.last_update.borrow_mut();
+
+        if Local::now() - *last_update >= self.update_rate {
+            if self.sys.borrow_mut().cpus().is_empty() {
+                self.icon_text.borrow_mut().change_text("ERR");
+            } else {
+                self.icon_text
+                    .borrow_mut()
+                    .change_text(format!("{info: >2}%").as_str());
+            }
+
+            *last_update = Local::now();
+        }
+    }
+
+    fn set_width(&self) {
+        {
+            self.icon_text.borrow_mut().change_text("99%");
+            self.icon_text.borrow_mut().change_icon("");
+        }
+
+        let it = self.icon_text.borrow();
+        let it_data = it.data_mut();
+        let mut self_data = self.data.borrow_mut();
+
+        self_data.width = it_data.width + 5;
     }
 }
 
@@ -80,6 +108,8 @@ impl Widget for CPU {
     }
 
     fn init(&self) -> Result<(), WidgetError> {
+        self.set_width();
+
         self.apply_style()?;
 
         self.icon_text.borrow_mut().change_text("Err");
@@ -90,19 +120,19 @@ impl Widget for CPU {
     }
 
     fn prepare(&self) -> Result<(), WidgetError> {
+        self.update_text();
+
         {
             let it = self.icon_text.borrow();
-            it.prepare()?;
             let mut it_data = it.data_mut();
             let mut self_data = self.data.borrow_mut();
             it_data.position = self_data.position;
-            self_data.width = it_data.width;
             self_data.height = it_data.height;
         }
 
         self.apply_style()?;
+        self.icon_text.borrow().prepare()?;
 
-        *self.is_ready.borrow_mut() = true;
         Ok(())
     }
 
@@ -112,32 +142,6 @@ impl Widget for CPU {
         }
 
         self.draw_style()?;
-
-        let mut last_update = self.last_update.borrow_mut();
-
-        if Local::now() - *last_update >= self.update_rate {
-            let info = self.get_info();
-
-            if self.sys.borrow_mut().cpus().is_empty() {
-                self.icon_text.borrow_mut().change_icon("");
-                self.icon_text.borrow_mut().change_text("ERR");
-            } else {
-                self.icon_text
-                    .borrow_mut()
-                    .change_text(format!("{info}%").as_str());
-            }
-
-            *last_update = Local::now();
-        }
-
-        {
-            let it = self.icon_text.borrow();
-            let mut it_data = it.data_mut();
-            let mut self_data = self.data.borrow_mut();
-            it_data.position = self_data.position;
-            self_data.width = it_data.width;
-            self_data.height = it_data.height;
-        }
 
         self.icon_text.borrow().draw()
     }
@@ -155,8 +159,6 @@ impl WidgetNew for CPU {
     {
         Ok(Self {
             data: RefCell::new(settings.default_data),
-
-            is_ready: RefCell::new(false),
 
             icon_text: RefCell::new(IconText::new(
                 env.clone(),

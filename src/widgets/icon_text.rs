@@ -45,22 +45,23 @@ impl IconText {
 
         let mut text_data = self.text.data_mut();
         let text_style = self.text.style();
-        let data = &mut self.data.borrow_mut();
 
-        icon_data.position.0 = data.position.0 + icon_style.margin.left;
-        icon_data.position.1 = data.position.1 + icon_style.margin.up;
+        let mut self_data = self.data.borrow_mut();
+
+        icon_data.position.0 = self_data.position.0 + icon_style.margin.left;
+        icon_data.position.1 = self_data.position.1 + icon_style.margin.up;
         text_data.position.0 = icon_data.position.0
             + icon_data.width
             + icon_style.margin.right
             + text_style.margin.left;
-        text_data.position.1 = data.position.1 + text_style.margin.up;
+        text_data.position.1 = self_data.position.1 + text_style.margin.up;
 
-        data.height = usize::max(
-            text_data.position.1 - data.position.1 + text_data.height + text_style.margin.down,
-            icon_data.position.1 - data.position.1 + icon_data.height + icon_style.margin.down,
+        self_data.height = usize::max(
+            text_data.position.1 - self_data.position.1 + text_data.height + text_style.margin.down,
+            icon_data.position.1 - self_data.position.1 + icon_data.height + icon_style.margin.down,
         );
 
-        data.width = icon_style.margin.left
+        self_data.width = icon_style.margin.left
             + icon_style.margin.right
             + icon_data.width
             + text_style.margin.left
@@ -70,10 +71,12 @@ impl IconText {
 
     pub fn change_text(&mut self, text: &str) {
         self.text.change_text(text);
+        self.align();
     }
 
     pub fn change_icon(&mut self, text: &str) {
         self.icon.change_text(text);
+        self.align();
     }
 }
 
@@ -127,15 +130,10 @@ impl Widget for IconText {
             return Err(WidgetError::DrawWithNoEnv(WidgetList::IconText));
         }
 
-        if !*self.is_ready.borrow() {
-            self.prepare()?;
-        }
+        self.align();
+        self.apply_style()?;
 
         self.draw_style()?;
-        let style = self.style();
-        self.icon.data_mut().position += (style.margin.left, style.margin.up);
-        self.icon.data_mut().position += (style.margin.left, style.margin.up);
-
         self.text.draw()?;
         self.icon.draw()
     }

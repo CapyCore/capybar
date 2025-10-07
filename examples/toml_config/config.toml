@@ -14,8 +14,10 @@
     padding = [5,5,5]
     [bar.settings.left_settings]
         margin = [3,0,3,3]
+    [bar.settings.center_settings]
+        margin = [0,0,3,3]
     [bar.settings.right_settings]
-        margin = [0,6,3,3]
+        margin = [0,3,3,3]
 
 [[bar.left]]
     widget = "keyboard"
@@ -39,7 +41,7 @@
     [bar.center.settings] 
     size = 24
     font_color = 0xf5e0dcff
-    margin = [0,3,3,0]
+    margin = [0,3,0,0]
     border = [1, 0x74c7ecff]
 
 [[bar.right]]
@@ -48,5 +50,5 @@
     size = 24
     font_color = 0xf5e0dcff
     default_state = "Percentage"
-    margin = [0,3,3,0]
+    margin = [0,5,0,0]
     border = [1, 0x74c7ecff]
