@@ -4,6 +4,10 @@ use std::{
     collections::HashMap,
     num::NonZeroU32,
     rc::Rc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -28,7 +32,7 @@ use smithay_client_toolkit::{
         },
         WaylandSurface,
     },
-    shm::{Shm, ShmHandler},
+    shm::{slot::SlotPool, Shm, ShmHandler},
 };
 use thiserror::Error;
 use wayland_client::{
@@ -58,6 +62,21 @@ pub struct Environment {
     pub signals: RefCell<HashMap<SignalNames, Signal>>,
 }
 
+/// Structure describing all the capybar state that can be changed from outside
+pub struct BarState {
+    pub shutdown: Arc<AtomicBool>,
+    pub shown: Arc<AtomicBool>,
+}
+
+impl Default for BarState {
+    fn default() -> Self {
+        Self {
+            shutdown: Arc::new(AtomicBool::new(false)),
+            shown: Arc::new(AtomicBool::new(true)),
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum RootError {
     #[error("Environment is not initialised before drawing")]
@@ -65,7 +84,7 @@ pub enum RootError {
 }
 
 pub struct Root {
-    flag: bool,
+    state: BarState,
 
     registry_state: RegistryState,
     seat_state: SeatState,
@@ -353,7 +372,7 @@ impl Root {
         let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Top, Some("Bar"), None);
 
         let root = Root {
-            flag: true,
+            state: BarState::default(),
 
             registry_state: RegistryState::new(globals),
             seat_state: SeatState::new(globals, &qh),
@@ -398,7 +417,7 @@ impl Root {
         Ok(())
     }
 
-    fn init(&mut self) -> Result<&mut Self> {
+    pub fn init(&mut self) -> Result<&mut Self> {
         if self.bar.is_none() {
             return Err(anyhow!("Empty bar can not be created"));
         }
@@ -453,7 +472,8 @@ impl Root {
         Ok(self)
     }
 
-    pub fn run(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
+    /// Run the bar in a continious loop
+    pub fn run_sync(&mut self, event_queue: &mut EventQueue<Root>) -> Result<&mut Self> {
         event_queue.blocking_dispatch(self)?;
         self.init()?;
 
@@ -463,6 +483,19 @@ impl Root {
         }
 
         //Ok(self)
+    }
+
+    pub fn run_async(&mut self, event_queue: &mut EventQueue<Root>, state: BarState) -> Result<()> {
+        event_queue.blocking_dispatch(self)?;
+        self.init()?;
+        self.state = state;
+
+        while !self.state.shutdown.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(100));
+            event_queue.blocking_dispatch(self)?;
+        }
+
+        Ok(())
     }
 
     pub fn add_font_by_name(&mut self, name: &'static str) -> Result<(), FontsError> {
@@ -479,6 +512,31 @@ impl Root {
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<()> {
+        if !self.state.shown.load(Ordering::SeqCst) {
+            self.layer.set_exclusive_zone(0 as i32);
+
+            self.layer
+                .wl_surface()
+                .damage_buffer(0, 0, self.width as i32, self.height as i32);
+
+            self.layer
+                .wl_surface()
+                .frame(qh, self.layer.wl_surface().clone());
+
+            let mut pool =
+                SlotPool::new((self.width * self.height * 4) as usize, &self.shm).unwrap();
+            let buf = pool
+                .create_buffer(1, 1, 4, wayland_client::protocol::wl_shm::Format::Argb8888)
+                .unwrap()
+                .0;
+
+            buf.attach_to(self.layer.wl_surface())
+                .expect("buffer attach");
+            self.layer.wl_surface().commit();
+
+            return Ok(());
+        }
+
         if self.env.is_none() {
             return Err(RootError::EnvironmentNotInit.into());
         }
@@ -506,6 +564,8 @@ impl Root {
             }
         }
 
+        self.layer.set_exclusive_zone(self.height as i32);
+
         self.layer
             .wl_surface()
             .damage_buffer(0, 0, self.width as i32, self.height as i32);
@@ -525,12 +585,25 @@ impl Root {
             .borrow_mut()
             .commit(self.layer.wl_surface());
 
-        self.flag = false;
         Ok(())
     }
 
     pub fn bar(&self) -> &Option<Bar> {
         &self.bar
+    }
+
+    pub fn hide(&mut self) {
+        self.state.shown.store(false, Ordering::SeqCst);
+    }
+
+    pub fn show(&mut self) {
+        self.state.shown.store(true, Ordering::SeqCst);
+    }
+
+    pub fn toggle(&mut self) {
+        self.state
+            .shown
+            .store(!self.state.shown.load(Ordering::SeqCst), Ordering::SeqCst);
     }
 }
 
