@@ -63,7 +63,7 @@ pub trait Widget {
         todo!()
     }
 
-    fn handle_mouse_press(&self, event: &PointerEvent) -> Result<(), WidgetError> {
+    fn handle_mouse_press(&self, _event: &PointerEvent) -> Result<(), WidgetError> {
         Ok(())
     }
 

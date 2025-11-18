@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     let mut capybar = Root::new(&globals, &mut event_queue, None)?;
     capybar.apply_config(config)?;
 
-    capybar.run(&mut event_queue)?;
+    capybar.run_sync(&mut event_queue)?;
 
     Ok(())
 }

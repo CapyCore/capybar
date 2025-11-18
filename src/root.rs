@@ -513,7 +513,7 @@ impl Root {
 
     fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<()> {
         if !self.state.shown.load(Ordering::SeqCst) {
-            self.layer.set_exclusive_zone(0 as i32);
+            self.layer.set_exclusive_zone(0);
 
             self.layer
                 .wl_surface()

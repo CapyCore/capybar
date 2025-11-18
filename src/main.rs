@@ -78,7 +78,7 @@ impl std::str::FromStr for Request {
             "show" => Ok(Show),
             "toggle" => Ok(Toggle),
             "stop" => Ok(Stop),
-            other => Err(format!("unknown request: {}", other)),
+            other => Err(format!("unknown request: {other}")),
         }
     }
 }
@@ -161,7 +161,7 @@ fn run_client(request: Request) -> std::io::Result<()> {
     println!("[Client] Connected to server.");
 
     writeln!(stream, "{request}")?;
-    println!("[Client] Sent: '{}'", request);
+    println!("[Client] Sent: '{request}'");
 
     let mut reader = BufReader::new(&stream);
     let mut response = String::new();
@@ -189,7 +189,7 @@ fn handle_client(
         }
     };
 
-    println!("[Server] Received request: '{}'", req);
+    println!("[Server] Received request: '{req}'");
 
     use Request::*;
     match req {
@@ -231,7 +231,7 @@ fn run_server(shutdown: Arc<AtomicBool>, control_tx: mpsc::Sender<ControlMsg>) -
     }
 
     let listener = UnixListener::bind(SOCKET_PATH)?;
-    println!("[Server] Started, listening on {}", SOCKET_PATH);
+    println!("[Server] Started, listening on {SOCKET_PATH}");
 
     loop {
         match listener.accept() {
@@ -244,12 +244,12 @@ fn run_server(shutdown: Arc<AtomicBool>, control_tx: mpsc::Sender<ControlMsg>) -
                 let tx = control_tx.clone();
                 thread::spawn(move || {
                     if let Err(e) = handle_client(stream, shutdown_clone, tx) {
-                        eprintln!("[Server] Error handling client: {}", e);
+                        eprintln!("[Server] Error handling client: {e}");
                     }
                 });
             }
-            Err(err) => {
-                eprintln!("[Server] Error accepting connection: {}", err);
+            Err(e) => {
+                eprintln!("[Server] Error accepting connection: {e}");
                 break;
             }
         }
@@ -257,7 +257,7 @@ fn run_server(shutdown: Arc<AtomicBool>, control_tx: mpsc::Sender<ControlMsg>) -
 
     drop(listener);
     if let Err(e) = fs::remove_file(SOCKET_PATH) {
-        eprintln!("[Server] Could not remove socket file: {}", e);
+        eprintln!("[Server] Could not remove socket file: {e}");
     }
     println!("[Server] Stopped.");
     Ok(())
@@ -269,7 +269,7 @@ fn main() -> Result<()> {
     match cli.request {
         Some(request) => {
             if let Err(e) = run_client(request) {
-                eprintln!("[Client] Error: {}. Is the server running?", e);
+                eprintln!("[Client] Error: {e}. Is the server running?");
             }
         }
         None => {
@@ -281,7 +281,7 @@ fn main() -> Result<()> {
             let server_handle = thread::spawn(move || {
                 if let Err(e) = run_server(server_shutdown.clone(), server_tx) {
                     server_shutdown.store(true, Ordering::SeqCst);
-                    eprintln!("[Server] Fatal error: {}", e);
+                    eprintln!("[Server] Fatal error: {e}");
                 }
             });
 
@@ -298,12 +298,12 @@ fn main() -> Result<()> {
                 Ok((mut capybar, mut event_queue)) => {
                     if let Err(e) = capybar.run_async(&mut event_queue, capybar_state) {
                         capybar_shutdown.store(true, Ordering::SeqCst);
-                        eprintln!("[Server] Fatal error: {}", e);
+                        eprintln!("[Server] Fatal error: {e}");
                     }
                 }
                 Err(e) => {
                     capybar_shutdown.store(true, Ordering::SeqCst);
-                    eprintln!("[Server] Fatal error: {}", e);
+                    eprintln!("[Server] Fatal error: {e}");
                 }
             });
 

@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     capybar.add_font_by_name("jetbrainsmononerdfont")?;
     capybar.add_font_by_name("jetbrainsmononerdfont")?;
 
-    capybar.run(&mut event_queue)?;
+    capybar.run_sync(&mut event_queue)?;
 
     Ok(())
 }
