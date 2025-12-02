@@ -1,6 +1,7 @@
 pub mod containers;
 
 pub mod battery;
+pub mod button;
 pub mod clock;
 pub mod cpu;
 pub mod icon_text;
@@ -63,7 +64,7 @@ pub trait Widget {
         todo!()
     }
 
-    fn handle_mouse_press(&self, _event: &PointerEvent) -> Result<(), WidgetError> {
+    fn handle_mouse_event(&self, _event: &PointerEvent) -> Result<(), WidgetError> {
         Ok(())
     }
 
@@ -308,6 +309,8 @@ pub trait WidgetStyled: Widget {
 pub enum WidgetList {
     Text,
     IconText,
+    Button,
+
     Clock,
     Battery,
     CPU,
@@ -324,7 +327,9 @@ impl Display for WidgetList {
         use WidgetList::*;
         match self {
             Text => write!(f, "Text"),
-            IconText => write!(f, "Text"),
+            IconText => write!(f, "IconText"),
+            Button => write!(f, "Button"),
+
             Clock => write!(f, "Clock"),
             Battery => write!(f, "Battery"),
             CPU => write!(f, "Cpu"),

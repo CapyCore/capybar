@@ -60,6 +60,7 @@ pub struct Environment {
     pub config: Config,
     pub drawer: RefCell<Drawer>,
     pub signals: RefCell<HashMap<SignalNames, Signal>>,
+    pub mouse_position: RefCell<(f64, f64)>,
 }
 
 /// Structure describing all the capybar state that can be changed from outside
@@ -327,14 +328,31 @@ impl PointerHandler for Root {
         _pointer: &wl_pointer::WlPointer,
         events: &[PointerEvent],
     ) {
+        use smithay_client_toolkit::seat::pointer::PointerEventKind;
+
         for event in events {
             if &event.surface != self.layer.wl_surface() {
                 continue;
             }
-            match self.bar.as_ref().unwrap().handle_mouse_press(event) {
+
+            match &event.kind {
+                PointerEventKind::Motion { .. } => {
+                    if let Some(ref env) = self.env {
+                        *env.mouse_position.borrow_mut() = event.position;
+                    }
+                }
+                PointerEventKind::Leave { .. } => {
+                    if let Some(ref env) = self.env {
+                        *env.mouse_position.borrow_mut() = (-1.0, -1.0);
+                    }
+                }
+                _ => {}
+            }
+
+            match self.bar.as_ref().unwrap().handle_mouse_event(event) {
                 Ok(..) => {}
                 Err(error) => {
-                    println!("Mouse press failed with error:\n {error}");
+                    println!("Mouse event failed with error:\n {error}");
                 }
             }
         }
@@ -432,6 +450,7 @@ impl Root {
             config: Config::default(),
             drawer: RefCell::new(Drawer::new(&mut self.shm, 1, 1)),
             signals: RefCell::new(HashMap::new()),
+            mouse_position: RefCell::new((-1.0, -1.0)),
         }));
 
         for service in &mut self.services {
@@ -478,7 +497,7 @@ impl Root {
         self.init()?;
 
         loop {
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(10));
             event_queue.blocking_dispatch(self)?;
         }
 
@@ -573,7 +592,6 @@ impl Root {
         self.bar.as_ref().unwrap().run()?;
         self.bar.as_ref().unwrap().draw()?;
 
-        // Request our next frame
         self.layer
             .wl_surface()
             .frame(qh, self.layer.wl_surface().clone());

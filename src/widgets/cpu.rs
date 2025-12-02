@@ -7,7 +7,7 @@ use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use super::{
     icon_text::{IconText, IconTextSettings},
-    text::TextSettings,
+    text::{Text, TextSettings},
     Style, Widget, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled,
 };
 

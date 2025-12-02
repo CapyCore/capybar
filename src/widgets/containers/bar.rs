@@ -166,13 +166,13 @@ impl Widget for Bar {
         self.data.borrow_mut()
     }
 
-    fn handle_mouse_press(
+    fn handle_mouse_event(
         &self,
         event: &smithay_client_toolkit::seat::pointer::PointerEvent,
     ) -> Result<(), WidgetError> {
-        self.left.borrow().handle_mouse_press(event)?;
-        self.center.borrow().handle_mouse_press(event)?;
-        self.right.borrow().handle_mouse_press(event)?;
+        self.left.borrow().handle_mouse_event(event)?;
+        self.center.borrow().handle_mouse_event(event)?;
+        self.right.borrow().handle_mouse_event(event)?;
 
         Ok(())
     }

@@ -11,7 +11,7 @@ use smithay_client_toolkit::seat::pointer::PointerEventKind;
 
 use super::{
     icon_text::{IconText, IconTextSettings},
-    text::TextSettings,
+    text::{Text, TextSettings},
     Style, Widget, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled,
 };
 
@@ -229,7 +229,7 @@ impl Widget for Battery {
         self.data.borrow_mut()
     }
 
-    fn handle_mouse_press(
+    fn handle_mouse_event(
         &self,
         event: &smithay_client_toolkit::seat::pointer::PointerEvent,
     ) -> Result<(), WidgetError> {

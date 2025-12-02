@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     icon_text::{IconText, IconTextSettings},
-    text::TextSettings,
+    text::{Text, TextSettings},
     Style, WidgetData, WidgetError, WidgetList, WidgetNew, WidgetStyled,
 };
 

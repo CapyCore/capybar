@@ -103,7 +103,7 @@ impl Widget for Row {
         self.data.borrow_mut()
     }
 
-    fn handle_mouse_press(
+    fn handle_mouse_event(
         &self,
         event: &smithay_client_toolkit::seat::pointer::PointerEvent,
     ) -> Result<(), WidgetError> {
@@ -114,7 +114,7 @@ impl Widget for Row {
                 && data.position.1 as f64 <= event.position.1
                 && event.position.1 <= (data.position.1 + data.height) as f64
             {
-                child.handle_mouse_press(event)?;
+                child.handle_mouse_event(event)?;
             }
         }
 
